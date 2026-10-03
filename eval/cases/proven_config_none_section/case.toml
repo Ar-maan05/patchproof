@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_settings.py'
+expected_verdict = "PROVEN"
+category = "real_fix"
+source = "synthetic"
+notes = '''A YAML file with an empty `network:` section parses to {'network': None}; get_timeout() then crashed with AttributeError, and an explicit `timeout: null` leaked None to callers. Fix treats None as missing but keeps 0 (a legal value). Tests cover each shape including the 0 edge, which kills the classic `or`-default mutant.'''

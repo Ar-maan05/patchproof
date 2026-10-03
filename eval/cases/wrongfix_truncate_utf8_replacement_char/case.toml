@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_truncate.py'
+expected_verdict = "WEAK_TEST"
+category = "wrong_fix"
+source = "synthetic (overfitting-style patch)"
+notes = '''HEADLINE. truncate_utf8() raised UnicodeDecodeError when the byte budget split a multibyte character. The patch decodes with errors='replace', which stops the crash but returns a string ending in U+FFFD that is longer than the budget. The test only checks no exception and the prefix; hidden_test.py asserts the correct result ('日', within 4 bytes) and fails on head.'''

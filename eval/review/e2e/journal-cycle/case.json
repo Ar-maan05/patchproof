@@ -1,0 +1,30 @@
+{
+  "id": "journal-cycle",
+  "comment_json": "comments/systemd__systemd__43953__4145779056.json",
+  "comment_url": "https://github.com/systemd/systemd/pull/43953#discussion_r4145779056",
+  "head_sha": "d11fa0b9a3df3ac3874e9f513dff5ef28f8e4482",
+  "fix_sha": "ecb7f185086b63b42abd5d1e56c24e69504d8760",
+  "ground_truth": {
+    "outcome": "applied",
+    "claim_class": "real_bug"
+  },
+  "build_targets": [
+    "test-journal"
+  ],
+  "suite_commands": [
+    "build/test-journal"
+  ],
+  "reference_test": "test-journal",
+  "reproducer_path": "src/libsystemd/sd-journal/test-patchproof-review.c",
+  "suggestion": {
+    "file": "suggestion.patch",
+    "kind": "fix_commit",
+    "derived_from": "d11fa0b9a3..ecb7f18508",
+    "restricted_to": [
+      "src/shared/journal-file-util.c"
+    ],
+    "note": "git diff d11fa0b9 ecb7f185 -- src/shared/journal-file-util.c: the forward-progress check in journal_file_punch_holes(). The test file test-journal.c from the same commit is excluded."
+  },
+  "expected_verdict": "NECESSARY",
+  "expected_reason": "real_bug + applied + the suggestion is the later fix"
+}

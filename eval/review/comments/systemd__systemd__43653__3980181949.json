@@ -1,0 +1,69 @@
+{
+  "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/3980181949",
+  "pull_request_review_id": 5168427958,
+  "id": 3980181949,
+  "node_id": "PRRC_kwDOAfWbYc7tPMG9",
+  "diff_hunk": "@@ -2079,18 +2079,23 @@ static char* align_string_mem(const char *str, const char *url, size_t new_lengt\n         } else\n                 clickable_length = old_length;\n \n-        /* Determine current width on screen */\n+        /* Determine current width on screen. Use the same helper the measuring pass uses, so that this\n+         * function cannot keep a second, more permissive idea of both validity and width of its own.\n+         * Note that our caller only gets here after utf8_console_width() succeeded on the very same\n+         * string, so the invalid case below should not be reachable in practice. */\n         p = str;\n         while (p < str + old_length) {\n-                char32_t c;\n-\n-                if (utf8_encoded_to_unichar(p, &c) < 0) {\n-                        p++, w++; /* count invalid chars as 1 */\n+                int n = utf8_char_console_width(p);\n+                if (n < 0) {\n+                        /* Count an invalid sequence as one character of width one. Skip all of it, so\n+                         * that its continuation bytes are not charged a cell each of their own. */\n+                        p = utf8_next_char(p);",
+  "path": "src/shared/format-table.c",
+  "commit_id": "7cc0257ba80317121faf97fda6d69d0e5b2e43af",
+  "original_commit_id": "5a91d1dee4686d210777f6d8f0777fc6e4540e7e",
+  "user": {
+    "login": "github-actions[bot]",
+    "id": 41898282,
+    "node_id": "MDM6Qm90NDE4OTgyODI=",
+    "avatar_url": "https://avatars.githubusercontent.com/in/15368?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/github-actions%5Bbot%5D",
+    "html_url": "https://github.com/apps/github-actions",
+    "followers_url": "https://api.github.com/users/github-actions%5Bbot%5D/followers",
+    "following_url": "https://api.github.com/users/github-actions%5Bbot%5D/following{/other_user}",
+    "gists_url": "https://api.github.com/users/github-actions%5Bbot%5D/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/github-actions%5Bbot%5D/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/github-actions%5Bbot%5D/subscriptions",
+    "organizations_url": "https://api.github.com/users/github-actions%5Bbot%5D/orgs",
+    "repos_url": "https://api.github.com/users/github-actions%5Bbot%5D/repos",
+    "events_url": "https://api.github.com/users/github-actions%5Bbot%5D/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/github-actions%5Bbot%5D/received_events",
+    "type": "Bot",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "body": "Claude: **suggestion**: This fallback is unreachable, and as rewritten it would not do what the comment says. The only caller (line 2596) computes `l = utf8_console_width(field)` on exactly these bytes and calls this only on the `l < width[j]` path; an invalid sequence makes that return `SIZE_MAX`, which takes the ellipsize branch instead (the `lines_truncated` branch recomputes `l` after re-ellipsizing, so that holds too). The `url` argument only affects `clickable`, not the string measured here.\n\nIf it ever were reached: `utf8_next_char()` steps purely by `utf8_skip_data[lead]` with no validation, so a lone `\\xF0` followed by `abc` advances 4 bytes and measures w=1 instead of 4 - under-measuring, which inflates `space = new_length - w` and overflows the column, the very failure this PR removes. \"Skip all of it\" therefore holds only for a sequence as long as its lead byte advertises, not for a truncated one. A trailing lone `\\xF8` also computes a pointer several bytes past the NUL (nothing is dereferenced, since the loop test then fails).\n\nSince both arms now do the same `utf8_next_char()`, consider dropping the branch for `assert(n >= 0); w += n;`, matching `utf8_escape_non_printable_full()` (src/basic/utf8.c:236) and the `assert(cw >= 0)` this series just removed from `strv_rebreak_lines()`.",
+  "created_at": "2026-09-10T14:33:05Z",
+  "updated_at": "2026-09-10T14:33:05Z",
+  "html_url": "https://github.com/systemd/systemd/pull/43653#discussion_r3980181949",
+  "pull_request_url": "https://api.github.com/repos/systemd/systemd/pulls/43653",
+  "_links": {
+    "self": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/comments/3980181949"
+    },
+    "html": {
+      "href": "https://github.com/systemd/systemd/pull/43653#discussion_r3980181949"
+    },
+    "pull_request": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/43653"
+    }
+  },
+  "reactions": {
+    "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/3980181949/reactions",
+    "total_count": 0,
+    "+1": 0,
+    "-1": 0,
+    "laugh": 0,
+    "hooray": 0,
+    "confused": 0,
+    "heart": 0,
+    "rocket": 0,
+    "eyes": 0
+  },
+  "start_line": 2089,
+  "original_start_line": 2089,
+  "start_side": "RIGHT",
+  "line": 2092,
+  "original_line": 2092,
+  "side": "RIGHT",
+  "author_association": "NONE",
+  "original_position": 19,
+  "position": 19,
+  "subject_type": "line"
+}

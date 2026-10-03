@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_tokens.py'
+expected_verdict = "PROVEN"
+category = "real_fix"
+source = "synthetic"
+notes = '''Tokens are emitted without '=' padding (URL-safe), but b64url_decode passed them straight to urlsafe_b64decode, raising binascii.Error for any length not a multiple of 4. Fix re-adds padding. Tests round-trip all residues mod 4.'''

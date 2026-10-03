@@ -1,0 +1,40 @@
+diff --git a/tests/test_wrap.py b/tests/test_wrap.py
+new file mode 100644
+index 0000000..b7047bd
+--- /dev/null
++++ b/tests/test_wrap.py
+@@ -0,0 +1,15 @@
++from wrap import word_wrap
++
++
++def test_exact_fit_boundary():
++    assert word_wrap("the quick brown fox", 9) == ["the quick", "brown fox"]
++
++
++def test_space_counts_toward_width():
++    assert word_wrap("the quick brown fox", 8) == ["the", "quick", "brown", "fox"]
++
++
++def test_no_line_exceeds_width():
++    text = "pack my box with five dozen liquor jugs and then some more words"
++    for width in (7, 10, 13, 20):
++        assert all(len(line) <= width for line in word_wrap(text, width))
+diff --git a/wrap.py b/wrap.py
+index c0a1a29..2ca585e 100644
+--- a/wrap.py
++++ b/wrap.py
+@@ -7,7 +7,7 @@ def word_wrap(text: str, width: int) -> list[str]:
+     lines: list[str] = []
+     line = ""
+     for word in text.split():
+-        if line and len(line) + len(word) > width:
++        if line and len(line) + 1 + len(word) > width:
+             lines.append(line)
+             line = word
+         else:
+@@ -24,4 +24,4 @@ def word_wrap(text: str, width: int) -> list[str]:
+ # lines post-process the result themselves.
+ #
+ def indent(lines: list[str], prefix: str = "  ") -> list[str]:
+-    return [prefix + line for line in lines]
++    return [prefix + line if line else line for line in lines]

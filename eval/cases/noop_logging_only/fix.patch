@@ -1,0 +1,43 @@
+diff --git a/loader.py b/loader.py
+index fc00bfa..9e38986 100644
+--- a/loader.py
++++ b/loader.py
+@@ -1,10 +1,14 @@
+ """Config file loading."""
+ import json
++import logging
++
++log = logging.getLogger(__name__)
+ 
+ 
+ def load_json_or_default(path, default=None):
+     try:
+         with open(path) as fh:
+             return json.load(fh)
+-    except (OSError, json.JSONDecodeError):
++    except (OSError, json.JSONDecodeError) as exc:
++        log.warning("could not load %s: %s", path, exc)
+         return default
+diff --git a/tests/test_loader.py b/tests/test_loader.py
+new file mode 100644
+index 0000000..7d44a6b
+--- /dev/null
++++ b/tests/test_loader.py
+@@ -0,0 +1,17 @@
++from loader import load_json_or_default
++
++
++def test_missing_file(tmp_path):
++    assert load_json_or_default(tmp_path / "nope.json", {"a": 1}) == {"a": 1}
++
++
++def test_bad_json(tmp_path):
++    p = tmp_path / "bad.json"
++    p.write_text("{not json")
++    assert load_json_or_default(p, []) == []
++
++
++def test_valid(tmp_path):
++    p = tmp_path / "ok.json"
++    p.write_text('{"x": 2}')
++    assert load_json_or_default(p) == {"x": 2}

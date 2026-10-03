@@ -1,0 +1,48 @@
+diff --git a/csvfmt.py b/csvfmt.py
+index 1747852..d32c4ba 100644
+--- a/csvfmt.py
++++ b/csvfmt.py
+@@ -5,8 +5,8 @@ from typing import Iterable
+ 
+ 
+ def quote_field(field: str) -> str:
+-    if "," in field:
+-        return '"' + field + '"'
++    if any(ch in field for ch in ',"\r\n'):
++        return '"' + field.replace('"', '""') + '"'
+     return field
+ 
+ 
+diff --git a/tests/test_csvfmt.py b/tests/test_csvfmt.py
+new file mode 100644
+index 0000000..96286a4
+--- /dev/null
++++ b/tests/test_csvfmt.py
+@@ -0,0 +1,27 @@
++import csv
++import io
++
++from csvfmt import format_row, quote_field
++
++
++def test_plain_untouched():
++    assert quote_field("abc") == "abc"
++
++
++def test_comma():
++    assert quote_field("a,b") == '"a,b"'
++
++
++def test_embedded_quote_is_doubled():
++    assert quote_field('say "hi"') == '"say ""hi"""'
++
++
++def test_newline_and_cr():
++    assert quote_field("a\nb") == '"a\nb"'
++    assert quote_field("a\rb") == '"a\rb"'
++
++
++def test_roundtrip():
++    fields = ["a", "b,c", 'say "hi"', "line1\nline2", "cr\rhere", ""]
++    row = format_row(fields)
++    assert list(csv.reader(io.StringIO(row)))[0] == fields

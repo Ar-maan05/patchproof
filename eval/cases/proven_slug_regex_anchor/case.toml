@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_slugs.py'
+expected_verdict = "PROVEN"
+category = "real_fix"
+source = "synthetic"
+notes = '''is_valid_slug() used re.match, which only anchors at the start, so 'hello world' and 'hello-' validated as slugs. Fix is re.fullmatch. Tests include trailing garbage, trailing hyphen, double hyphen, uppercase and empty input.'''

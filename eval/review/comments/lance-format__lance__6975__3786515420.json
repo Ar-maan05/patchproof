@@ -1,0 +1,69 @@
+{
+  "url": "https://api.github.com/repos/lance-format/lance/pulls/comments/3786515420",
+  "pull_request_review_id": 4940437653,
+  "id": 3786515420,
+  "node_id": "PRRC_kwDOHn_KdM7hsaPc",
+  "diff_hunk": "@@ -3739,6 +3740,102 @@ impl LanceNamespace for DirectoryNamespace {\n         })\n     }\n \n+    async fn rename_table(&self, request: RenameTableRequest) -> Result<RenameTableResponse> {\n+        self.record_op(\"rename_table\");\n+        if let Some(manifest_ns) = self.manifest_ns_for_write().await? {\n+            return LanceNamespace::rename_table(manifest_ns.as_ref(), request).await;\n+        }\n+\n+        if request.new_table_name.trim().is_empty() {\n+            return Err(NamespaceError::InvalidInput {\n+                message: \"new_table_name cannot be empty\".to_string(),\n+            }\n+            .into());\n+        }\n+\n+        // Without manifest mode, only the root namespace exists, so a table cannot\n+        // be moved into a different namespace.\n+        if request\n+            .new_namespace_id\n+            .as_ref()\n+            .is_some_and(|namespace| !namespace.is_empty())\n+        {\n+            return Err(NamespaceError::Unsupported {\n+                message: \"Cross-namespace rename is only supported when manifest mode is enabled\"\n+                    .to_string(),\n+            }\n+            .into());\n+        }\n+\n+        let source_name = Self::table_name_from_id(&request.id)?;\n+        let new_table_name = request.new_table_name.clone();\n+\n+        let source_status = self.check_table_status(&source_name).await?;\n+        if !source_status.exists || source_status.is_deregistered {\n+            return Err(NamespaceError::TableNotFound {\n+                message: Self::format_table_id_from_request(&request.id),\n+            }\n+            .into());\n+        }\n+\n+        // Without a manifest the table name is the directory name, so the copy below can\n+        // only publish a readable table into an empty prefix. Copying into a prefix that\n+        // still holds objects (a deregistered table, a declaration marker, or the debris\n+        // of an interrupted rename) would interleave two datasets under one name and\n+        // report success for a destination nobody can open.\n+        let destination_status = self.check_table_status(&new_table_name).await?;\n+        if destination_status.exists {\n+            let message = if destination_status.is_deregistered {\n+                format!(\n+                    \"{}: a deregistered table directory still occupies this name, drop it before renaming into it\",\n+                    new_table_name\n+                )\n+            } else {\n+                new_table_name\n+            };\n+            return Err(NamespaceError::TableAlreadyExists { message }.into());\n+        }\n+\n+        let source_path = self.table_path(&source_name);\n+        let destination_path = self.table_path(&new_table_name);\n+        // The copy publishes the new name as it goes, so an incomplete one is removed\n+        // again: the prefix was empty a moment ago, and leaving a half-copied dataset\n+        // there would turn a failed rename into a permanently unreadable table.\n+        if let Err(copy_err) =\n+            manifest::copy_dir_all(&self.object_store, &source_path, &destination_path).await",
+  "path": "rust/lance-namespace-impls/src/dir.rs",
+  "commit_id": "82929ef5271cc5283a2f14f2fcb808c57f8b9f5e",
+  "original_commit_id": "82929ef5271cc5283a2f14f2fcb808c57f8b9f5e",
+  "user": {
+    "login": "lance-gatekeeper[bot]",
+    "id": 310925327,
+    "node_id": "BOT_kgDOEohYDw",
+    "avatar_url": "https://avatars.githubusercontent.com/in/4433141?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/lance-gatekeeper%5Bbot%5D",
+    "html_url": "https://github.com/apps/lance-gatekeeper",
+    "followers_url": "https://api.github.com/users/lance-gatekeeper%5Bbot%5D/followers",
+    "following_url": "https://api.github.com/users/lance-gatekeeper%5Bbot%5D/following{/other_user}",
+    "gists_url": "https://api.github.com/users/lance-gatekeeper%5Bbot%5D/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/lance-gatekeeper%5Bbot%5D/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/lance-gatekeeper%5Bbot%5D/subscriptions",
+    "organizations_url": "https://api.github.com/users/lance-gatekeeper%5Bbot%5D/orgs",
+    "repos_url": "https://api.github.com/users/lance-gatekeeper%5Bbot%5D/repos",
+    "events_url": "https://api.github.com/users/lance-gatekeeper%5Bbot%5D/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/lance-gatekeeper%5Bbot%5D/received_events",
+    "type": "Bot",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "body": "Two callers can both pass the source/destination checks and enter this copy without any cross-instance claim. On this head, concurrent renames of one source to `left` and `right` produced one success and one source-removal error, but a fresh observer found both destinations: `(successes, destinations) = (1, 2)`. A failed call has therefore published durable namespace state. An independent run also had two different sources both return success while renaming into the same destination, retiring both sources behind one name. Reserve both names atomically and copy only into caller-owned staging, or keep no-manifest rename unsupported.\n\n<details><summary>Reproducer</summary>\n\nAdded alongside the existing test module and ran `CARGO_TARGET_DIR=/home/agent/tmp/gate-pr6975-target-local-3078-r3 cargo test -p lance-namespace-impls gate_repro_v1_concurrent_renames_publish_two_destinations -- --nocapture`:\n\n```rust\n#[tokio::test(flavor = \"multi_thread\", worker_threads = 4)]\nasync fn gate_repro_v1_concurrent_renames_publish_two_destinations() {\n    let temp_dir = TempStdDir::default();\n    let root = temp_dir.to_str().unwrap();\n    let setup = DirectoryNamespaceBuilder::new(root)\n        .manifest_enabled(false)\n        .build().await.unwrap();\n    let mut create = CreateTableRequest::new();\n    create.id = Some(vec![\"source\".to_string()]);\n    setup.create_table(\n        create,\n        Bytes::from(create_non_empty_test_ipc_data()),\n    ).await.unwrap();\n\n    let left = DirectoryNamespaceBuilder::new(root)\n        .manifest_enabled(false).build().await.unwrap();\n    let right = DirectoryNamespaceBuilder::new(root)\n        .manifest_enabled(false).build().await.unwrap();\n    let barrier = Arc::new(tokio::sync::Barrier::new(2));\n    let left_barrier = barrier.clone();\n\n    let left_rename = async {\n        let mut request = RenameTableRequest::new(\"left\".to_string());\n        request.id = Some(vec![\"source\".to_string()]);\n        left_barrier.wait().await;\n        left.rename_table(request).await\n    };\n    let right_rename = async {\n        let mut request = RenameTableRequest::new(\"right\".to_string());\n        request.id = Some(vec![\"source\".to_string()]);\n        barrier.wait().await;\n        right.rename_table(request).await\n    };\n    let (a, b) = tokio::join!(left_rename, right_rename);\n    let successes = usize::from(a.is_ok()) + usize::from(b.is_ok());\n\n    let observer = DirectoryNamespaceBuilder::new(root)\n        .manifest_enabled(false).build().await.unwrap();\n    let mut destinations = 0;\n    for name in [\"left\", \"right\"] {\n        let mut request = TableExistsRequest::new();\n        request.id = Some(vec![name.to_string()]);\n        destinations += usize::from(observer.table_exists(request).await.is_ok());\n    }\n\n    assert_eq!((successes, destinations), (1, 1));\n}\n```\n\nThe assertion failed on the first attempt with `(1, 2)`.\n\n</details>",
+  "created_at": "2026-08-14T19:12:23Z",
+  "updated_at": "2026-08-14T19:12:23Z",
+  "html_url": "https://github.com/lance-format/lance/pull/6975#discussion_r3786515420",
+  "pull_request_url": "https://api.github.com/repos/lance-format/lance/pulls/6975",
+  "_links": {
+    "self": {
+      "href": "https://api.github.com/repos/lance-format/lance/pulls/comments/3786515420"
+    },
+    "html": {
+      "href": "https://github.com/lance-format/lance/pull/6975#discussion_r3786515420"
+    },
+    "pull_request": {
+      "href": "https://api.github.com/repos/lance-format/lance/pulls/6975"
+    }
+  },
+  "reactions": {
+    "url": "https://api.github.com/repos/lance-format/lance/pulls/comments/3786515420/reactions",
+    "total_count": 0,
+    "+1": 0,
+    "-1": 0,
+    "laugh": 0,
+    "hooray": 0,
+    "confused": 0,
+    "heart": 0,
+    "rocket": 0,
+    "eyes": 0
+  },
+  "start_line": null,
+  "original_start_line": null,
+  "start_side": null,
+  "line": null,
+  "original_line": 3805,
+  "side": "RIGHT",
+  "author_association": "CONTRIBUTOR",
+  "original_position": 82,
+  "position": 1,
+  "subject_type": "line"
+}

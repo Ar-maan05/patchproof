@@ -1,0 +1,41 @@
+diff --git a/cidr.py b/cidr.py
+index a4de9b9..256da95 100644
+--- a/cidr.py
++++ b/cidr.py
+@@ -9,5 +9,5 @@ def _to_int(ip: str) -> int:
+ def ip_in_cidr(ip: str, cidr: str) -> bool:
+     net, prefix_s = cidr.split("/")
+     prefix = int(prefix_s)
+-    mask = (1 << prefix) - 1
++    mask = (0xFFFFFFFF << (32 - prefix)) & 0xFFFFFFFF
+     return _to_int(ip) & mask == _to_int(net) & mask
+diff --git a/tests/test_cidr.py b/tests/test_cidr.py
+new file mode 100644
+index 0000000..bb4af72
+--- /dev/null
++++ b/tests/test_cidr.py
+@@ -0,0 +1,24 @@
++from cidr import ip_in_cidr
++
++
++def test_inside_slash24():
++    assert ip_in_cidr("10.0.0.5", "10.0.0.0/24")
++    assert ip_in_cidr("10.0.0.255", "10.0.0.0/24")
++
++
++def test_outside_slash24():
++    assert not ip_in_cidr("10.0.1.5", "10.0.0.0/24")
++
++
++def test_slash16():
++    assert ip_in_cidr("192.168.200.1", "192.168.0.0/16")
++    assert not ip_in_cidr("192.169.0.1", "192.168.0.0/16")
++
++
++def test_slash32_exact():
++    assert ip_in_cidr("1.2.3.4", "1.2.3.4/32")
++    assert not ip_in_cidr("1.2.3.5", "1.2.3.4/32")
++
++
++def test_slash0_matches_everything():
++    assert ip_in_cidr("8.8.8.8", "0.0.0.0/0")

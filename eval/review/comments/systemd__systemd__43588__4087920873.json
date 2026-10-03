@@ -1,0 +1,69 @@
+{
+  "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/4087920873",
+  "pull_request_review_id": 5297511226,
+  "id": 4087920873,
+  "node_id": "PRRC_kwDOAfWbYc7zqLjp",
+  "diff_hunk": "@@ -103,17 +195,76 @@ static void mdns_maintenance_query_complete(DnsQuery *q) {\n                 return (void) log_error_errno(r, \"Failed to revisit cache for family %s: %m\", af_to_name(query->answer_family));\n }\n \n+static int mdns_maintenance_query(sd_event_source *s, uint64_t usec, void *userdata);\n+\n+/* Arms the maintenance event source of 'service' for the first maintenance point at or after 'usec',\n+ * scheduling from the TTL state 'ttl_state', and commits the state that point belongs to. The state is\n+ * only committed once the source is armed, and the source is left disabled if it is not, so that the\n+ * time the source is armed at and 'service->rr_ttl_state' cannot disagree. */\n+int mdns_service_arm_maintenance(DnssdDiscoveredService *service, usec_t usec, DnsRecordTTLState ttl_state) {\n+        int r;\n+\n+        assert(service);\n+        assert(service->service_browser);\n+        assert(service->service_browser->manager);\n+\n+        usec_t next_time = mdns_maintenance_schedule(service, usec, &ttl_state);\n+\n+        r = event_reset_time(\n+                        service->service_browser->manager->event,\n+                        &service->schedule_event,\n+                        CLOCK_BOOTTIME,\n+                        next_time,\n+                        /* accuracy= */ 0,\n+                        mdns_maintenance_query,\n+                        service,\n+                        /* priority= */ 0,\n+                        \"mdns-next-query-schedule\",\n+                        /* force_reset= */ true);\n+        if (r < 0) {\n+                /* event_reset_time() sets the time and enables the source before it sets the priority\n+                 * and the description, i.e. it may fail with the source already armed. Disable it\n+                 * again, so that it cannot fire for a maintenance point the TTL state knows nothing\n+                 * about. */\n+                if (service->schedule_event)\n+                        (void) sd_event_source_set_enabled(service->schedule_event, SD_EVENT_OFF);\n+\n+                return log_error_errno(r, \"Failed to schedule mDNS maintenance query: %m\");\n+        }\n+\n+        service->rr_ttl_state = ttl_state;\n+\n+        return 0;\n+}\n+\n static int mdns_maintenance_query(sd_event_source *s, uint64_t usec, void *userdata) {\n         DnssdDiscoveredService *service = ASSERT_PTR(userdata);\n         _cleanup_(dns_query_freep) DnsQuery *q = NULL;\n         int r;\n \n         assert(service->service_browser);\n \n+        /* Note that no failure below is propagated to the event loop. sd-event logs an error returned\n+         * by a callback at debug level only and disables the source, so propagating one would both\n+         * undo the re-arm and hide the failure from the log; report them here instead. */\n+\n         /* Check if the TTL state has reached the maximum value, then revisit\n          * cache */\n-        if (service->rr_ttl_state++ == DNS_RECORD_TTL_STATE_100_PERCENT)\n-                return mdns_browser_revisit_cache(service->service_browser, service->family);\n+        if (service->rr_ttl_state == DNS_RECORD_TTL_STATE_100_PERCENT) {\n+                r = mdns_browser_revisit_cache(service->service_browser, service->family);\n+                if (r < 0)\n+                        log_error_errno(r, \"Failed to revisit cache for family %s, ignoring: %m\",\n+                                        af_to_name(service->family));",
+  "path": "src/resolve/resolved-dns-browse-services.c",
+  "commit_id": "b90b360d3d1c75b72953c4d3efa99fe8f0c1a04e",
+  "original_commit_id": "b90b360d3d1c75b72953c4d3efa99fe8f0c1a04e",
+  "user": {
+    "login": "github-actions[bot]",
+    "id": 41898282,
+    "node_id": "MDM6Qm90NDE4OTgyODI=",
+    "avatar_url": "https://avatars.githubusercontent.com/in/15368?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/github-actions%5Bbot%5D",
+    "html_url": "https://github.com/apps/github-actions",
+    "followers_url": "https://api.github.com/users/github-actions%5Bbot%5D/followers",
+    "following_url": "https://api.github.com/users/github-actions%5Bbot%5D/following{/other_user}",
+    "gists_url": "https://api.github.com/users/github-actions%5Bbot%5D/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/github-actions%5Bbot%5D/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/github-actions%5Bbot%5D/subscriptions",
+    "organizations_url": "https://api.github.com/users/github-actions%5Bbot%5D/orgs",
+    "repos_url": "https://api.github.com/users/github-actions%5Bbot%5D/repos",
+    "events_url": "https://api.github.com/users/github-actions%5Bbot%5D/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/github-actions%5Bbot%5D/received_events",
+    "type": "Bot",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "body": "Claude: **must-fix**: mdns_browser_revisit_cache() normally detaches this very service at the 100% point, dropping the browser's last reference and freeing it, so reading service->family afterwards is a use-after-free (reachable when the varlink notify after the detach fails). Capture the family in a local first.",
+  "created_at": "2026-09-23T22:26:32Z",
+  "updated_at": "2026-09-23T22:26:32Z",
+  "html_url": "https://github.com/systemd/systemd/pull/43588#discussion_r4087920873",
+  "pull_request_url": "https://api.github.com/repos/systemd/systemd/pulls/43588",
+  "_links": {
+    "self": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/comments/4087920873"
+    },
+    "html": {
+      "href": "https://github.com/systemd/systemd/pull/43588#discussion_r4087920873"
+    },
+    "pull_request": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/43588"
+    }
+  },
+  "reactions": {
+    "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/4087920873/reactions",
+    "total_count": 0,
+    "+1": 0,
+    "-1": 0,
+    "laugh": 0,
+    "hooray": 0,
+    "confused": 0,
+    "heart": 0,
+    "rocket": 0,
+    "eyes": 0
+  },
+  "start_line": 254,
+  "original_start_line": 254,
+  "start_side": "RIGHT",
+  "line": 257,
+  "original_line": 257,
+  "side": "RIGHT",
+  "author_association": "NONE",
+  "original_position": 191,
+  "position": 191,
+  "subject_type": "line"
+}

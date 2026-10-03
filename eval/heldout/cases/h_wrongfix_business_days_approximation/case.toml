@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_bizdays.py'
+expected_verdict = "WEAK_TEST"
+category = "wrong_fix"
+source = "synthetic (overfitting-style patch)"
+notes = '''business_days() counted every calendar day. The patch approximates with days * 5 // 7, which is exact for whole weeks (the only thing the test covers) but wrong for partial weeks. hidden_test.py: Friday to Monday has exactly one business day, the patch says two.'''

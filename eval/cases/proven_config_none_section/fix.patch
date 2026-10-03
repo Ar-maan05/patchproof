@@ -1,0 +1,41 @@
+diff --git a/settings.py b/settings.py
+index d7e18cd..8b66710 100644
+--- a/settings.py
++++ b/settings.py
+@@ -6,6 +6,6 @@ DEFAULT_TIMEOUT = 30.0
+ 
+ def get_timeout(cfg: dict) -> float:
+     """Request timeout in seconds; 0 is legal and means 'no timeout'."""
+-    network = cfg.get("network", {})
+-    timeout = network.get("timeout", DEFAULT_TIMEOUT)
+-    return timeout
++    network = cfg.get("network") or {}
++    timeout = network.get("timeout")
++    return DEFAULT_TIMEOUT if timeout is None else timeout
+diff --git a/tests/test_settings.py b/tests/test_settings.py
+new file mode 100644
+index 0000000..b30b094
+--- /dev/null
++++ b/tests/test_settings.py
+@@ -0,0 +1,21 @@
++from settings import get_timeout
++
++
++def test_missing_section():
++    assert get_timeout({}) == 30.0
++
++
++def test_empty_section_is_none():
++    assert get_timeout({"network": None}) == 30.0
++
++
++def test_explicit_value():
++    assert get_timeout({"network": {"timeout": 5}}) == 5
++
++
++def test_null_value_uses_default():
++    assert get_timeout({"network": {"timeout": None}}) == 30.0
++
++
++def test_zero_is_respected():
++    assert get_timeout({"network": {"timeout": 0}}) == 0

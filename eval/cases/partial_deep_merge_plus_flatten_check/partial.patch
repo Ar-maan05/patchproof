@@ -1,0 +1,41 @@
+diff --git a/merge.py b/merge.py
+index a985afd..51e4706 100644
+--- a/merge.py
++++ b/merge.py
+@@ -6,7 +6,10 @@ def deep_merge(base: dict, override: dict) -> dict:
+     """Recursively merge `override` into a copy of `base`."""
+     result = dict(base)
+     for key, value in override.items():
+-        result[key] = value
++        if isinstance(value, dict) and isinstance(result.get(key), dict):
++            result[key] = deep_merge(result[key], value)
++        else:
++            result[key] = value
+     return result
+ 
+ 
+diff --git a/tests/test_merge.py b/tests/test_merge.py
+new file mode 100644
+index 0000000..1f7b688
+--- /dev/null
++++ b/tests/test_merge.py
+@@ -0,0 +1,19 @@
++from merge import deep_merge
++
++
++def test_nested_dicts_are_merged():
++    base = {"db": {"host": "a", "port": 1}, "debug": False}
++    over = {"db": {"port": 2}}
++    assert deep_merge(base, over) == {"db": {"host": "a", "port": 2}, "debug": False}
++
++
++def test_scalar_overrides_dict():
++    assert deep_merge({"a": {"b": 1}}, {"a": 5}) == {"a": 5}
++
++
++def test_inputs_not_mutated():
++    base = {"a": {"b": 1}}
++    over = {"a": {"c": 2}}
++    deep_merge(base, over)
++    assert base == {"a": {"b": 1}}
++    assert over == {"a": {"c": 2}}

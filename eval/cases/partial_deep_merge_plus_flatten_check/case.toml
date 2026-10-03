@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_merge.py'
+expected_verdict = "PARTIAL"
+category = "partial"
+source = "synthetic"
+notes = '''Real fix: deep_merge() replaced nested dicts wholesale instead of merging them. The patch also adds an isinstance guard to flatten(), a function the test never touches. Hunk 1 alone suffices; hunk 2 is never executed.'''

@@ -1,0 +1,30 @@
+diff --git a/semver.py b/semver.py
+index 3ddd0ee..c11330f 100644
+--- a/semver.py
++++ b/semver.py
+@@ -3,6 +3,9 @@
+ 
+ def compare(a: str, b: str) -> int:
+     """Return -1, 0 or 1 if `a` is older than, equal to or newer than `b`."""
+-    if a == b:
+-        return 0
+-    return -1 if a < b else 1
++    ka, kb = _core(a), _core(b)
++    return (ka > kb) - (ka < kb)
++
++
++def _core(version: str) -> tuple[int, ...]:
++    return tuple(int(p) for p in version.split("-")[0].split("."))
+diff --git a/tests/test_semver.py b/tests/test_semver.py
+new file mode 100644
+index 0000000..8484400
+--- /dev/null
++++ b/tests/test_semver.py
+@@ -0,0 +1,7 @@
++from semver import compare
++
++
++def test_numeric_not_lexicographic():
++    assert compare("1.10.0", "1.9.0") == 1
++    assert compare("1.9.0", "1.10.0") == -1
++    assert compare("2.0.0", "2.0.0") == 0

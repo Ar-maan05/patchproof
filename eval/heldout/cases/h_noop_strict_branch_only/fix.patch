@@ -1,0 +1,32 @@
+diff --git a/boolparse.py b/boolparse.py
+index 021f866..dc3111c 100644
+--- a/boolparse.py
++++ b/boolparse.py
+@@ -5,7 +5,7 @@ FALSE = {"0", "false", "no", "off"}
+ 
+ def parse_bool(text: str, strict: bool = False) -> bool:
+     if strict:
+-        value = text
++        value = text.strip()
+     else:
+         value = text.strip().lower()
+     if value in TRUE:
+diff --git a/tests/test_boolparse.py b/tests/test_boolparse.py
+new file mode 100644
+index 0000000..3298705
+--- /dev/null
++++ b/tests/test_boolparse.py
+@@ -0,0 +1,13 @@
++import pytest
++
++from boolparse import parse_bool
++
++
++def test_values():
++    assert parse_bool("true") is True
++    assert parse_bool(" Off ") is False
++
++
++def test_garbage():
++    with pytest.raises(ValueError):
++        parse_bool("maybe")

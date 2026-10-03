@@ -1,0 +1,642 @@
+[
+ {
+  "seed_id": "issue01",
+  "test_source": "from lru import LRUCache\n\ndef test_read_protects_entry_from_eviction():\n    cache = LRUCache(2)\n    cache.put(\"a\", 1)\n    cache.put(\"b\", 2)\n    cache.get(\"a\")\n    cache.put(\"c\", 3)\n    assert cache.get(\"a\") == 1\n    assert cache.get(\"b\") is None\n",
+  "failure": "AssertionError: assert None == 1\n +  where None = <bound method LRUCache.get of <lru.LRUCache object at 0x7f3a1c2b5d50>>('a')",
+  "label": "consistent",
+  "kind": "stated",
+  "rationale": "The issue gives the exact scenario (cap 2: put a, put b, read a, put c) and says b should be evicted."
+ },
+ {
+  "seed_id": "issue01",
+  "test_source": "from lru import LRUCache\n\ndef test_least_recently_read_is_evicted():\n    cache = LRUCache(2)\n    cache.put(\"a\", 1)\n    cache.put(\"b\", 2)\n    cache.get(\"b\")\n    cache.get(\"a\")\n    cache.put(\"c\", 3)\n    assert cache.get(\"b\") is None\n    assert cache.get(\"a\") == 1\n    assert cache.get(\"c\") == 3\n",
+  "failure": "AssertionError: assert 2 is None\n +  where 2 = <bound method LRUCache.get of <lru.LRUCache object at 0x7f0e5b1a3c10>>('b')",
+  "label": "consistent",
+  "kind": "entailed",
+  "rationale": "'Reading an entry should count as a use' means after reading b then a, b is least recently used and is evicted."
+ },
+ {
+  "seed_id": "issue01",
+  "test_source": "from lru import LRUCache\n\ndef test_miss_does_not_change_recency():\n    cache = LRUCache(2)\n    cache.put(\"a\", 1)\n    cache.put(\"b\", 2)\n    cache.get(\"missing\")\n    cache.put(\"c\", 3)\n    assert cache.get(\"a\") is None\n    assert cache.get(\"b\") == 2\n",
+  "failure": "AssertionError: assert 1 is None\n +  where 1 = <bound method LRUCache.get of <lru.LRUCache object at 0x7f9d2e6a7a90>>('a')",
+  "label": "inconsistent",
+  "kind": "silent_input",
+  "rationale": "The issue says nothing about reading a missing key; whether a miss affects recency is unspecified."
+ },
+ {
+  "seed_id": "issue01",
+  "test_source": "import pytest\nfrom lru import LRUCache\n\ndef test_zero_capacity_rejected():\n    with pytest.raises(ValueError):\n        LRUCache(0)\n",
+  "failure": "Failed: DID NOT RAISE <class 'ValueError'>",
+  "label": "inconsistent",
+  "kind": "unstated_error",
+  "rationale": "The issue never mentions what a zero-capacity cache does, let alone that it raises ValueError."
+ },
+ {
+  "seed_id": "issue01",
+  "test_source": "from lru import LRUCache\n\ndef test_peek_does_not_refresh():\n    cache = LRUCache(2)\n    cache.put(\"a\", 1)\n    cache.put(\"b\", 2)\n    cache.get(\"a\", touch=False)\n    cache.put(\"c\", 3)\n    assert cache.get(\"a\") is None\n",
+  "failure": "TypeError: LRUCache.get() got an unexpected keyword argument 'touch'",
+  "label": "inconsistent",
+  "kind": "extra_feature",
+  "rationale": "A touch=False option on get is not part of the reported fix; the issue says reading counts as a use."
+ },
+ {
+  "seed_id": "issue02",
+  "test_source": "from intervals import merge_intervals\n\ndef test_touching_ranges_merge():\n    assert merge_intervals([(1, 3), (3, 5)]) == [(1, 5)]\n",
+  "failure": "AssertionError: assert [(1, 3), (3, 5)] == [(1, 5)]\n  At index 0 diff: (1, 3) != (1, 5)\n  Left contains one more item: (3, 5)\n +  where [(1, 3), (3, 5)] = merge_intervals([(1, 3), (3, 5)])",
+  "label": "consistent",
+  "kind": "stated",
+  "rationale": "The issue states merge_intervals([(1, 3), (3, 5)]) should be [(1, 5)]."
+ },
+ {
+  "seed_id": "issue02",
+  "test_source": "from intervals import merge_intervals\n\ndef test_nested_range_keeps_outer_extent():\n    assert merge_intervals([(1, 10), (2, 3)]) == [(1, 10)]\n",
+  "failure": "AssertionError: assert [(1, 3)] == [(1, 10)]\n  At index 0 diff: (1, 3) != (1, 10)\n +  where [(1, 3)] = merge_intervals([(1, 10), (2, 3)])",
+  "label": "consistent",
+  "kind": "stated",
+  "rationale": "The issue says merge_intervals([(1, 10), (2, 3)]) should be [(1, 10)]."
+ },
+ {
+  "seed_id": "issue02",
+  "test_source": "from intervals import merge_intervals\n\ndef test_reversed_pair_is_normalised():\n    assert merge_intervals([(5, 1)]) == [(1, 5)]\n",
+  "failure": "AssertionError: assert [(5, 1)] == [(1, 5)]\n  At index 0 diff: (5, 1) != (1, 5)\n +  where [(5, 1)] = merge_intervals([(5, 1)])",
+  "label": "inconsistent",
+  "kind": "silent_input",
+  "rationale": "Intervals given with start greater than end are never discussed; normalising them is one of several reasonable behaviours."
+ },
+ {
+  "seed_id": "issue02",
+  "test_source": "from intervals import merge_intervals\n\ndef test_result_pairs_are_lists():\n    assert merge_intervals([(1, 3), (3, 5)]) == [[1, 5]]\n",
+  "failure": "AssertionError: assert [(1, 5)] == [[1, 5]]\n  At index 0 diff: (1, 5) != [1, 5]\n +  where [(1, 5)] = merge_intervals([(1, 3), (3, 5)])",
+  "label": "inconsistent",
+  "kind": "contradicts",
+  "rationale": "The docstring says the function returns sorted tuples, but the test expects lists."
+ },
+ {
+  "seed_id": "issue02",
+  "test_source": "from intervals import merge_intervals\n\ndef test_gap_tolerance():\n    assert merge_intervals([(1, 3), (4, 6)], gap=1) == [(1, 6)]\n",
+  "failure": "TypeError: merge_intervals() got an unexpected keyword argument 'gap'",
+  "label": "inconsistent",
+  "kind": "extra_feature",
+  "rationale": "A gap tolerance parameter is beyond the fix, which only concerns ranges sharing an endpoint and nested ranges."
+ },
+ {
+  "seed_id": "issue03",
+  "test_source": "from paginate import paginate\n\ndef test_first_page():\n    assert paginate(list(range(10)), 1, 3) == [0, 1, 2]\n",
+  "failure": "AssertionError: assert [3, 4, 5] == [0, 1, 2]\n  At index 0 diff: 3 != 0\n +  where [3, 4, 5] = paginate([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 1, 3)",
+  "label": "consistent",
+  "kind": "stated",
+  "rationale": "The issue says paginate(list(range(10)), 1, 3) should be [0, 1, 2]."
+ },
+ {
+  "seed_id": "issue03",
+  "test_source": "from paginate import paginate\n\ndef test_third_page_is_one_indexed():\n    assert paginate(list(range(10)), 3, 3) == [6, 7, 8]\n",
+  "failure": "AssertionError: assert [9] == [6, 7, 8]\n  At index 0 diff: 9 != 6\n  Right contains 2 more items, first extra item: 7\n +  where [9] = paginate([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 3, 3)",
+  "label": "consistent",
+  "kind": "entailed",
+  "rationale": "With 1-indexed pages of size 3, page 3 holds items 6 to 8."
+ },
+ {
+  "seed_id": "issue03",
+  "test_source": "import pytest\nfrom paginate import paginate\n\ndef test_page_zero_rejected():\n    with pytest.raises(ValueError):\n        paginate(list(range(10)), 0, 3)\n",
+  "failure": "Failed: DID NOT RAISE <class 'ValueError'>",
+  "label": "inconsistent",
+  "kind": "unstated_error",
+  "rationale": "The issue never says page 0 is an error; it could equally return an empty list."
+ },
+ {
+  "seed_id": "issue03",
+  "test_source": "from paginate import paginate\n\ndef test_page_past_end_is_empty():\n    assert paginate(list(range(10)), 5, 3) == []\n",
+  "failure": "AssertionError: assert [9] == []\n +  where [9] = paginate([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 5, 3)",
+  "label": "inconsistent",
+  "kind": "silent_input",
+  "rationale": "The issue only says out-of-range pages are shifted, not what the correct result is (empty list vs error)."
+ },
+ {
+  "seed_id": "issue03",
+  "test_source": "from paginate import paginate\n\ndef test_metadata_flag():\n    items, total_pages = paginate(list(range(10)), 1, 3, with_total=True)\n    assert items == [0, 1, 2]\n    assert total_pages == 4\n",
+  "failure": "TypeError: paginate() got an unexpected keyword argument 'with_total'",
+  "label": "inconsistent",
+  "kind": "extra_feature",
+  "rationale": "Returning page metadata is beyond the fix, which only concerns the 1-indexing offset."
+ },
+ {
+  "seed_id": "issue04",
+  "test_source": "from leap import is_leap_year\n\ndef test_1900_is_not_leap():\n    assert is_leap_year(1900) is False\n",
+  "failure": "AssertionError: assert True is False\n +  where True = is_leap_year(1900)",
+  "label": "consistent",
+  "kind": "stated",
+  "rationale": "The issue states 1900 was not a leap year."
+ },
+ {
+  "seed_id": "issue04",
+  "test_source": "from leap import is_leap_year\n\ndef test_2000_is_leap():\n    assert is_leap_year(2000) is True\n    assert is_leap_year(2023) is False\n",
+  "failure": "AssertionError: assert False is True\n +  where False = is_leap_year(2000)",
+  "label": "consistent",
+  "kind": "entailed",
+  "rationale": "Standard Gregorian rules make 2000 (divisible by 400) a leap year."
+ },
+ {
+  "seed_id": "issue04",
+  "test_source": "from leap import is_leap_year\n\ndef test_year_zero_is_leap():\n    assert is_leap_year(0) is True\n",
+  "failure": "AssertionError: assert False is True\n +  where False = is_leap_year(0)",
+  "label": "inconsistent",
+  "kind": "silent_input",
+  "rationale": "Year 0 and proleptic years are never mentioned; the Gregorian rules are not defined there by the issue."
+ },
+ {
+  "seed_id": "issue04",
+  "test_source": "import pytest\nfrom leap import is_leap_year\n\ndef test_negative_year_rejected():\n    with pytest.raises(ValueError):\n        is_leap_year(-4)\n",
+  "failure": "Failed: DID NOT RAISE <class 'ValueError'>",
+  "label": "inconsistent",
+  "kind": "unstated_error",
+  "rationale": "The issue says nothing about rejecting out-of-range years with an exception."
+ },
+ {
+  "seed_id": "issue04",
+  "test_source": "from leap import is_leap_year\n\ndef test_century_years_never_leap():\n    assert is_leap_year(1900) is False\n    assert is_leap_year(2000) is False\n",
+  "failure": "AssertionError: assert True is False\n +  where True = is_leap_year(2000)",
+  "label": "inconsistent",
+  "kind": "contradicts",
+  "rationale": "The issue asks for standard Gregorian rules, under which 2000 is a leap year."
+ },
+ {
+  "seed_id": "issue05",
+  "test_source": "from tokens import b64url_decode\n\ndef test_decode_unpadded_single_byte():\n    assert b64url_decode(\"YQ\") == b\"a\"\n",
+  "failure": "binascii.Error: Incorrect padding",
+  "label": "consistent",
+  "kind": "stated",
+  "rationale": "The issue says b64url_decode('YQ') blows up and must return the original bytes b'a'."
+ },
+ {
+  "seed_id": "issue05",
+  "test_source": "from tokens import b64url_decode\n\ndef test_decode_unpadded_two_bytes():\n    assert b64url_decode(\"YWI\") == b\"ab\"\n",
+  "failure": "binascii.Error: Incorrect padding",
+  "label": "consistent",
+  "kind": "entailed",
+  "rationale": "Unpadded URL-safe base64 must decode to the original bytes, and 'YWI' is the unpadded encoding of b'ab'."
+ },
+ {
+  "seed_id": "issue05",
+  "test_source": "from tokens import b64url_decode\n\ndef test_padded_input_accepted():\n    assert b64url_decode(\"YQ==\") == b\"a\"\n",
+  "failure": "AssertionError: assert b'' == b'a'\n +  where b'' = b64url_decode('YQ==')",
+  "label": "inconsistent",
+  "kind": "silent_input",
+  "rationale": "The issue only covers unpadded input; whether already-padded input is accepted is not stated."
+ },
+ {
+  "seed_id": "issue05",
+  "test_source": "import pytest\nfrom tokens import b64url_decode\n\ndef test_invalid_length_message():\n    with pytest.raises(ValueError, match=\"invalid base64url length\"):\n        b64url_decode(\"Y\")\n",
+  "failure": "AssertionError: Regex pattern did not match.\n Regex: 'invalid base64url length'\n Input: 'Incorrect padding'",
+  "label": "inconsistent",
+  "kind": "unstated_error",
+  "rationale": "The issue never says what malformed input should raise or with what message."
+ },
+ {
+  "seed_id": "issue05",
+  "test_source": "import binascii\nimport pytest\nfrom tokens import b64url_decode\n\ndef test_unpadded_input_rejected():\n    with pytest.raises(binascii.Error):\n        b64url_decode(\"YQ\")\n",
+  "failure": "Failed: DID NOT RAISE <class 'binascii.Error'>",
+  "label": "inconsistent",
+  "kind": "contradicts",
+  "rationale": "The issue says decode must accept unpadded input, but the test expects it to be rejected."
+ },
+ {
+  "seed_id": "issue06",
+  "test_source": "from slugs import is_valid_slug\n\ndef test_rejects_space_and_trailing_hyphen():\n    assert is_valid_slug(\"hello world\") is False\n    assert is_valid_slug(\"hello-\") is False\n",
+  "failure": "AssertionError: assert True is False\n +  where True = is_valid_slug('hello world')",
+  "label": "consistent",
+  "kind": "stated",
+  "rationale": "The issue says 'hello world' and 'hello-' must not be valid slugs."
+ },
+ {
+  "seed_id": "issue06",
+  "test_source": "from slugs import is_valid_slug\n\ndef test_single_hyphen_ok_double_not():\n    assert is_valid_slug(\"hello-world\") is True\n    assert is_valid_slug(\"hello--world\") is False\n",
+  "failure": "AssertionError: assert True is False\n +  where True = is_valid_slug('hello--world')",
+  "label": "consistent",
+  "kind": "entailed",
+  "rationale": "The stated rule is lowercase alphanumerics separated by single hyphens, so 'hello-world' is valid and 'hello--world' is not."
+ },
+ {
+  "seed_id": "issue06",
+  "test_source": "from slugs import is_valid_slug\n\ndef test_empty_string_invalid():\n    assert is_valid_slug(\"\") is False\n",
+  "failure": "AssertionError: assert True is False\n +  where True = is_valid_slug('')",
+  "label": "inconsistent",
+  "kind": "silent_input",
+  "rationale": "The empty string is never discussed; rejecting it is reasonable but not stated."
+ },
+ {
+  "seed_id": "issue06",
+  "test_source": "import pytest\nfrom slugs import is_valid_slug\n\ndef test_none_raises_type_error():\n    with pytest.raises(TypeError):\n        is_valid_slug(None)\n",
+  "failure": "Failed: DID NOT RAISE <class 'TypeError'>",
+  "label": "inconsistent",
+  "kind": "unstated_error",
+  "rationale": "The issue does not say non-string input should raise TypeError rather than return False."
+ },
+ {
+  "seed_id": "issue06",
+  "test_source": "from slugs import is_valid_slug\n\ndef test_digits_not_allowed():\n    assert is_valid_slug(\"abc-123\") is False\n",
+  "failure": "AssertionError: assert True is False\n +  where True = is_valid_slug('abc-123')",
+  "label": "inconsistent",
+  "kind": "contradicts",
+  "rationale": "Slugs are 'lowercase alphanumerics', which includes digits, so the test's rejection of digits contradicts the issue."
+ },
+ {
+  "seed_id": "issue07",
+  "test_source": "from prefix import strip_prefix\n\ndef test_only_one_prefix_removed():\n    assert strip_prefix(\"foofoobar\", \"foo\") == \"foobar\"\n",
+  "failure": "AssertionError: assert 'bar' == 'foobar'\n  - foobar\n  + bar\n +  where 'bar' = strip_prefix('foofoobar', 'foo')",
+  "label": "consistent",
+  "kind": "stated",
+  "rationale": "The issue says strip_prefix('foofoobar', 'foo') should return 'foobar'."
+ },
+ {
+  "seed_id": "issue07",
+  "test_source": "from prefix import strip_prefix\n\ndef test_non_matching_prefix_unchanged():\n    assert strip_prefix(\"barfoo\", \"foo\") == \"barfoo\"\n",
+  "failure": "AssertionError: assert 'bar' == 'barfoo'\n  - barfoo\n  + bar\n +  where 'bar' = strip_prefix('barfoo', 'foo')",
+  "label": "consistent",
+  "kind": "stated",
+  "rationale": "The issue says a string not starting with the prefix is returned unchanged."
+ },
+ {
+  "seed_id": "issue07",
+  "test_source": "from prefix import strip_prefix\n\ndef test_case_insensitive_prefix():\n    assert strip_prefix(\"FOObar\", \"foo\") == \"bar\"\n",
+  "failure": "AssertionError: assert 'FOObar' == 'bar'\n  - bar\n  + FOObar\n +  where 'FOObar' = strip_prefix('FOObar', 'foo')",
+  "label": "inconsistent",
+  "kind": "silent_input",
+  "rationale": "Case sensitivity is never mentioned; a case-insensitive match is one possible reading."
+ },
+ {
+  "seed_id": "issue07",
+  "test_source": "import pytest\nfrom prefix import strip_prefix\n\ndef test_none_prefix_raises():\n    with pytest.raises(TypeError):\n        strip_prefix(\"foobar\", None)\n",
+  "failure": "Failed: DID NOT RAISE <class 'TypeError'>",
+  "label": "inconsistent",
+  "kind": "unstated_error",
+  "rationale": "The issue does not say what a non-string prefix does; raising TypeError is an assumption."
+ },
+ {
+  "seed_id": "issue07",
+  "test_source": "from prefix import strip_prefix\n\ndef test_removes_match_anywhere():\n    assert strip_prefix(\"barfoo\", \"foo\") == \"bar\"\n",
+  "failure": "AssertionError: assert 'barfoo' == 'bar'\n  - bar\n  + barfoo\n +  where 'barfoo' = strip_prefix('barfoo', 'foo')",
+  "label": "inconsistent",
+  "kind": "contradicts",
+  "rationale": "The issue says a string that does not start with the prefix is returned unchanged, but the test strips a trailing match."
+ },
+ {
+  "seed_id": "issue08",
+  "test_source": "from semver import compare\n\ndef test_numeric_component_ordering():\n    assert compare(\"1.10.0\", \"1.9.0\") == 1\n",
+  "failure": "AssertionError: assert -1 == 1\n +  where -1 = compare('1.10.0', '1.9.0')",
+  "label": "consistent",
+  "kind": "stated",
+  "rationale": "The issue states compare('1.10.0', '1.9.0') must be 1."
+ },
+ {
+  "seed_id": "issue08",
+  "test_source": "from semver import compare\n\ndef test_prerelease_before_release():\n    assert compare(\"1.0.0-rc.1\", \"1.0.0\") == -1\n    assert compare(\"1.0.0\", \"1.0.0-rc.1\") == 1\n",
+  "failure": "AssertionError: assert 1 == -1\n +  where 1 = compare('1.0.0-rc.1', '1.0.0')",
+  "label": "consistent",
+  "kind": "stated",
+  "rationale": "The issue says pre-release versions such as 1.0.0-rc.1 sort before the corresponding release."
+ },
+ {
+  "seed_id": "issue08",
+  "test_source": "from semver import compare\n\ndef test_missing_component_equals_zero():\n    assert compare(\"1.0\", \"1.0.0\") == 0\n",
+  "failure": "AssertionError: assert -1 == 0\n +  where -1 = compare('1.0', '1.0.0')",
+  "label": "inconsistent",
+  "kind": "silent_input",
+  "rationale": "Versions with differing numbers of components are not discussed; treating missing parts as zero is an assumption."
+ },
+ {
+  "seed_id": "issue08",
+  "test_source": "import pytest\nfrom semver import compare\n\ndef test_garbage_version_raises():\n    with pytest.raises(ValueError, match=\"invalid version\"):\n        compare(\"not-a-version\", \"1.0.0\")\n",
+  "failure": "Failed: DID NOT RAISE <class 'ValueError'>",
+  "label": "inconsistent",
+  "kind": "unstated_error",
+  "rationale": "The issue never specifies an exception for malformed version strings."
+ },
+ {
+  "seed_id": "issue08",
+  "test_source": "from semver import compare\n\ndef test_rc_is_newer_than_release():\n    assert compare(\"1.0.0-rc.1\", \"1.0.0\") == 1\n",
+  "failure": "AssertionError: assert -1 == 1\n +  where -1 = compare('1.0.0-rc.1', '1.0.0')",
+  "label": "inconsistent",
+  "kind": "contradicts",
+  "rationale": "The issue says pre-release versions sort before the release, but the test expects the opposite."
+ },
+ {
+  "seed_id": "issue09",
+  "test_source": "from billing import split_bill\n\ndef test_shares_sum_and_balance():\n    shares = split_bill(100, 3)\n    assert sum(shares) == 100\n    assert max(shares) - min(shares) <= 1\n",
+  "failure": "AssertionError: assert 99 == 100\n +  where 99 = sum([33, 33, 33])",
+  "label": "consistent",
+  "kind": "stated",
+  "rationale": "The issue requires shares to sum to exactly total_cents and differ by at most one cent."
+ },
+ {
+  "seed_id": "issue09",
+  "test_source": "from billing import split_bill\n\ndef test_ten_cents_four_ways():\n    assert sorted(split_bill(10, 4)) == [2, 2, 3, 3]\n",
+  "failure": "AssertionError: assert [2, 2, 2, 2] == [2, 2, 3, 3]\n  At index 2 diff: 2 != 3\n +  where [2, 2, 2, 2] = sorted([2, 2, 2, 2])",
+  "label": "consistent",
+  "kind": "entailed",
+  "rationale": "Four integer shares summing to 10 that differ by at most one are necessarily two 2s and two 3s."
+ },
+ {
+  "seed_id": "issue09",
+  "test_source": "from billing import split_bill\n\ndef test_extra_cent_goes_to_first():\n    assert split_bill(100, 3) == [34, 33, 33]\n",
+  "failure": "AssertionError: assert [33, 33, 34] == [34, 33, 33]\n  At index 0 diff: 33 != 34\n +  where [33, 33, 34] = split_bill(100, 3)",
+  "label": "inconsistent",
+  "kind": "overprecise",
+  "rationale": "The issue fixes the sum and spread but not which shares receive the extra cent, so the order [34, 33, 33] is not determined."
+ },
+ {
+  "seed_id": "issue09",
+  "test_source": "import pytest\nfrom billing import split_bill\n\ndef test_zero_people_rejected():\n    with pytest.raises(ValueError):\n        split_bill(100, 0)\n",
+  "failure": "Failed: DID NOT RAISE <class 'ValueError'>",
+  "label": "inconsistent",
+  "kind": "unstated_error",
+  "rationale": "The issue does not say n=0 must raise ValueError; ZeroDivisionError or another behaviour is equally plausible."
+ },
+ {
+  "seed_id": "issue09",
+  "test_source": "from billing import split_bill\n\ndef test_negative_total_refund():\n    assert sorted(split_bill(-100, 3)) == [-34, -33, -33]\n",
+  "failure": "AssertionError: assert [-33, -33, -33] == [-34, -33, -33]\n  At index 0 diff: -33 != -34",
+  "label": "inconsistent",
+  "kind": "silent_input",
+  "rationale": "Negative totals are not mentioned, and the issue does not say how remainders round for them."
+ },
+ {
+  "seed_id": "issue10",
+  "test_source": "from cidr import ip_in_cidr\n\ndef test_inside_and_outside_slash24():\n    assert ip_in_cidr(\"10.0.0.5\", \"10.0.0.0/24\") is True\n    assert ip_in_cidr(\"10.0.1.5\", \"10.0.0.0/24\") is False\n",
+  "failure": "AssertionError: assert False is True\n +  where False = ip_in_cidr('10.0.0.5', '10.0.0.0/24')",
+  "label": "consistent",
+  "kind": "stated",
+  "rationale": "The issue says 10.0.0.5 in 10.0.0.0/24 should be True and 10.0.1.5 should still be False."
+ },
+ {
+  "seed_id": "issue10",
+  "test_source": "from cidr import ip_in_cidr\n\ndef test_slash32_matches_single_host():\n    assert ip_in_cidr(\"10.0.0.5\", \"10.0.0.5/32\") is True\n    assert ip_in_cidr(\"10.0.0.6\", \"10.0.0.5/32\") is False\n",
+  "failure": "AssertionError: assert False is True\n +  where False = ip_in_cidr('10.0.0.5', '10.0.0.5/32')",
+  "label": "consistent",
+  "kind": "stated",
+  "rationale": "The issue says /32 should match exactly one host."
+ },
+ {
+  "seed_id": "issue10",
+  "test_source": "from cidr import ip_in_cidr\n\ndef test_ipv6_membership():\n    assert ip_in_cidr(\"2001:db8::1\", \"2001:db8::/32\") is True\n",
+  "failure": "ValueError: invalid literal for int() with base 10: '2001:db8::1'",
+  "label": "inconsistent",
+  "kind": "silent_input",
+  "rationale": "IPv6 is never mentioned; the issue's examples are all IPv4."
+ },
+ {
+  "seed_id": "issue10",
+  "test_source": "import pytest\nfrom cidr import ip_in_cidr\n\ndef test_garbage_ip_raises():\n    with pytest.raises(ValueError, match=\"invalid IP\"):\n        ip_in_cidr(\"not-an-ip\", \"10.0.0.0/24\")\n",
+  "failure": "AssertionError: Regex pattern did not match.\n Regex: 'invalid IP'\n Input: \"invalid literal for int() with base 10: 'not-an-ip'\"",
+  "label": "inconsistent",
+  "kind": "unstated_error",
+  "rationale": "The issue says nothing about malformed addresses raising ValueError versus returning False."
+ },
+ {
+  "seed_id": "issue10",
+  "test_source": "from cidr import ip_in_cidr\n\ndef test_multiple_networks():\n    assert ip_in_cidr(\"192.168.1.9\", [\"10.0.0.0/24\", \"192.168.0.0/16\"]) is True\n",
+  "failure": "AttributeError: 'list' object has no attribute 'split'",
+  "label": "inconsistent",
+  "kind": "extra_feature",
+  "rationale": "Accepting a list of networks is beyond the fix, which concerns a single CIDR string."
+ },
+ {
+  "seed_id": "issue11",
+  "test_source": "from truncate import truncate_utf8\n\ndef test_cut_inside_second_character():\n    assert truncate_utf8(\"日本語\", 4) == \"日\"\n",
+  "failure": "UnicodeDecodeError: 'utf-8' codec can't decode byte 0xe6 in position 3: unexpected end of data",
+  "label": "consistent",
+  "kind": "stated",
+  "rationale": "The issue gives truncate_utf8('日本語', 4) with expected result '日'."
+ },
+ {
+  "seed_id": "issue11",
+  "test_source": "from truncate import truncate_utf8\n\ndef test_eight_byte_budget():\n    assert truncate_utf8(\"日本語\", 8) == \"日本\"\n",
+  "failure": "UnicodeDecodeError: 'utf-8' codec can't decode byte 0xe8 in position 6: unexpected end of data",
+  "label": "consistent",
+  "kind": "entailed",
+  "rationale": "Each of these characters takes 3 bytes, so the longest prefix fitting in 8 bytes is the first two characters."
+ },
+ {
+  "seed_id": "issue11",
+  "test_source": "from truncate import truncate_utf8\n\ndef test_negative_budget_gives_empty():\n    assert truncate_utf8(\"日本語\", -1) == \"\"\n",
+  "failure": "AssertionError: assert '日本' == ''\n  + 日本\n +  where '日本' = truncate_utf8('日本語', -1)",
+  "label": "inconsistent",
+  "kind": "silent_input",
+  "rationale": "A negative byte budget is never discussed; returning '' is one of several reasonable behaviours."
+ },
+ {
+  "seed_id": "issue11",
+  "test_source": "import pytest\nfrom truncate import truncate_utf8\n\ndef test_none_text_raises():\n    with pytest.raises(TypeError):\n        truncate_utf8(None, 4)\n",
+  "failure": "Failed: DID NOT RAISE <class 'TypeError'>",
+  "label": "inconsistent",
+  "kind": "unstated_error",
+  "rationale": "The issue does not specify TypeError for non-string input."
+ },
+ {
+  "seed_id": "issue11",
+  "test_source": "from truncate import truncate_utf8\n\ndef test_does_not_split_combining_sequence():\n    assert truncate_utf8(\"e\\u0301x\", 2) == \"\"\n",
+  "failure": "AssertionError: assert 'e' == ''\n  + e\n +  where 'e' = truncate_utf8('é' 'x', 2)",
+  "label": "inconsistent",
+  "kind": "contradicts",
+  "rationale": "The docstring asks for the longest fitting prefix, which here is 'e', but the test expects a grapheme-aware empty string."
+ },
+ {
+  "seed_id": "issue12",
+  "test_source": "from datetime import date\nfrom period import in_period\n\ndef test_last_day_included():\n    assert in_period(date(2026, 3, 31), date(2026, 3, 1), date(2026, 3, 31)) is True\n",
+  "failure": "AssertionError: assert False is True\n +  where False = in_period(datetime.date(2026, 3, 31), datetime.date(2026, 3, 1), datetime.date(2026, 3, 31))",
+  "label": "consistent",
+  "kind": "stated",
+  "rationale": "The issue says in_period for 31 March with an end of 31 March should be inside the period."
+ },
+ {
+  "seed_id": "issue12",
+  "test_source": "from datetime import date\nfrom period import in_period\n\ndef test_inside_and_outside_dates():\n    start, end = date(2026, 3, 1), date(2026, 3, 31)\n    assert in_period(date(2026, 3, 1), start, end) is True\n    assert in_period(date(2026, 4, 1), start, end) is False\n    assert in_period(date(2026, 2, 28), start, end) is False\n",
+  "failure": "AssertionError: assert False is True\n +  where False = in_period(datetime.date(2026, 3, 1), datetime.date(2026, 3, 1), datetime.date(2026, 3, 31))",
+  "label": "consistent",
+  "kind": "entailed",
+  "rationale": "The period is inclusive on both ends, so 1 April is outside and 1 March is inside."
+ },
+ {
+  "seed_id": "issue12",
+  "test_source": "from datetime import date\nfrom period import in_period\n\ndef test_inverted_period_is_empty():\n    assert in_period(date(2026, 3, 15), date(2026, 3, 31), date(2026, 3, 1)) is False\n",
+  "failure": "AssertionError: assert True is False\n +  where True = in_period(datetime.date(2026, 3, 15), datetime.date(2026, 3, 31), datetime.date(2026, 3, 1))",
+  "label": "inconsistent",
+  "kind": "silent_input",
+  "rationale": "A period whose start is after its end is not discussed; returning False is an assumption."
+ },
+ {
+  "seed_id": "issue12",
+  "test_source": "import pytest\nfrom datetime import date\nfrom period import in_period\n\ndef test_start_after_end_raises():\n    with pytest.raises(ValueError):\n        in_period(date(2026, 3, 15), date(2026, 3, 31), date(2026, 3, 1))\n",
+  "failure": "Failed: DID NOT RAISE <class 'ValueError'>",
+  "label": "inconsistent",
+  "kind": "unstated_error",
+  "rationale": "The issue never says an inverted period raises ValueError."
+ },
+ {
+  "seed_id": "issue12",
+  "test_source": "from datetime import date\nfrom period import in_period\n\ndef test_start_day_excluded():\n    assert in_period(date(2026, 3, 1), date(2026, 3, 1), date(2026, 3, 31)) is False\n",
+  "failure": "AssertionError: assert True is False\n +  where True = in_period(datetime.date(2026, 3, 1), datetime.date(2026, 3, 1), datetime.date(2026, 3, 31))",
+  "label": "inconsistent",
+  "kind": "contradicts",
+  "rationale": "The issue and docstring say the period is inclusive on both ends, but the test makes the start exclusive."
+ },
+ {
+  "seed_id": "issue13",
+  "test_source": "import pytest\nfrom fsutil import safe_join\n\ndef test_sibling_with_shared_prefix_rejected():\n    with pytest.raises(ValueError):\n        safe_join(\"/srv/data\", \"../data-secret/x\")\n",
+  "failure": "Failed: DID NOT RAISE <class 'ValueError'>",
+  "label": "consistent",
+  "kind": "stated",
+  "rationale": "The issue says '../data-secret/x' under root /srv/data must be rejected with ValueError."
+ },
+ {
+  "seed_id": "issue13",
+  "test_source": "import pytest\nfrom fsutil import safe_join\n\ndef test_nested_traversal_rejected():\n    with pytest.raises(ValueError):\n        safe_join(\"/srv/data\", \"a/../../data-secret/x\")\n",
+  "failure": "Failed: DID NOT RAISE <class 'ValueError'>",
+  "label": "consistent",
+  "kind": "entailed",
+  "rationale": "Paths that resolve outside the root must raise ValueError, and 'a/../../data-secret/x' resolves to /srv/data-secret/x."
+ },
+ {
+  "seed_id": "issue13",
+  "test_source": "import pytest\nfrom fsutil import safe_join\n\ndef test_absolute_user_path_rejected():\n    with pytest.raises(ValueError):\n        safe_join(\"/srv/data\", \"/etc/passwd\")\n",
+  "failure": "Failed: DID NOT RAISE <class 'ValueError'>",
+  "label": "inconsistent",
+  "kind": "silent_input",
+  "rationale": "Absolute user paths are not discussed; they could be rejected or treated as relative to the root."
+ },
+ {
+  "seed_id": "issue13",
+  "test_source": "import pytest\nfrom fsutil import safe_join\n\ndef test_error_message_mentions_escape():\n    with pytest.raises(ValueError, match=\"path escapes root\"):\n        safe_join(\"/srv/data\", \"../data-secret/x\")\n",
+  "failure": "AssertionError: Regex pattern did not match.\n Regex: 'path escapes root'\n Input: \"'../data-secret/x' is outside '/srv/data'\"",
+  "label": "inconsistent",
+  "kind": "unstated_error",
+  "rationale": "The issue requires ValueError but never specifies any message text."
+ },
+ {
+  "seed_id": "issue13",
+  "test_source": "from fsutil import safe_join\n\ndef test_returned_path_is_normalised():\n    assert safe_join(\"/srv/data\", \"sub//file.txt\") == \"/srv/data/sub/file.txt\"\n",
+  "failure": "AssertionError: assert '/srv/data/sub//file.txt' == '/srv/data/sub/file.txt'\n  - /srv/data/sub/file.txt\n  + /srv/data/sub//file.txt\n  ?              +",
+  "label": "inconsistent",
+  "kind": "overprecise",
+  "rationale": "The issue does not say how redundant separators are normalised in the returned path."
+ },
+ {
+  "seed_id": "issue14",
+  "test_source": "from datetime import date\nfrom bizdays import business_days\n\ndef test_monday_to_monday_week():\n    assert business_days(date(2026, 10, 5), date(2026, 10, 12)) == 5\n",
+  "failure": "AssertionError: assert 7 == 5\n +  where 7 = business_days(datetime.date(2026, 10, 5), datetime.date(2026, 10, 12))",
+  "label": "consistent",
+  "kind": "stated",
+  "rationale": "The issue says business_days(date(2026,10,5), date(2026,10,12)) should be 5."
+ },
+ {
+  "seed_id": "issue14",
+  "test_source": "from datetime import date\nfrom bizdays import business_days\n\ndef test_friday_to_monday_counts_one():\n    assert business_days(date(2026, 10, 9), date(2026, 10, 12)) == 1\n",
+  "failure": "AssertionError: assert 3 == 1\n +  where 3 = business_days(datetime.date(2026, 10, 9), datetime.date(2026, 10, 12))",
+  "label": "consistent",
+  "kind": "entailed",
+  "rationale": "Counting days d with start <= d < end from Friday 9 Oct to Monday 12 Oct gives Friday, Saturday and Sunday, of which only Friday counts."
+ },
+ {
+  "seed_id": "issue14",
+  "test_source": "import pytest\nfrom datetime import date\nfrom bizdays import business_days\n\ndef test_start_after_end_raises():\n    with pytest.raises(ValueError):\n        business_days(date(2026, 10, 12), date(2026, 10, 5))\n",
+  "failure": "Failed: DID NOT RAISE <class 'ValueError'>",
+  "label": "inconsistent",
+  "kind": "unstated_error",
+  "rationale": "The issue keeps the counting convention and never says start after end raises ValueError."
+ },
+ {
+  "seed_id": "issue14",
+  "test_source": "from datetime import date\nfrom bizdays import business_days\n\ndef test_end_date_is_included():\n    assert business_days(date(2026, 10, 5), date(2026, 10, 9)) == 5\n",
+  "failure": "AssertionError: assert 4 == 5\n +  where 4 = business_days(datetime.date(2026, 10, 5), datetime.date(2026, 10, 9))",
+  "label": "inconsistent",
+  "kind": "contradicts",
+  "rationale": "The issue says the convention is start <= d < end, so Mon 5 to Fri 9 Oct counts 4 days, not 5."
+ },
+ {
+  "seed_id": "issue14",
+  "test_source": "from datetime import date\nfrom bizdays import business_days\n\ndef test_holidays_excluded():\n    result = business_days(date(2026, 10, 5), date(2026, 10, 12), holidays=[date(2026, 10, 7)])\n    assert result == 4\n",
+  "failure": "TypeError: business_days() got an unexpected keyword argument 'holidays'",
+  "label": "inconsistent",
+  "kind": "extra_feature",
+  "rationale": "A holiday calendar parameter is beyond the fix, which only excludes weekends."
+ },
+ {
+  "seed_id": "issue15",
+  "test_source": "from datetime import datetime, timezone\nfrom retry import parse_retry_after\n\ndef test_http_date_relative_to_now():\n    now = datetime(2026, 10, 21, 7, 27, 0, tzinfo=timezone.utc)\n    assert parse_retry_after(\"Wed, 21 Oct 2026 07:28:00 GMT\", now=now) == 60\n",
+  "failure": "ValueError: invalid literal for int() with base 10: 'Wed, 21 Oct 2026 07:28:00 GMT'",
+  "label": "consistent",
+  "kind": "stated",
+  "rationale": "The issue expects the number of seconds until the HTTP-date relative to now."
+ },
+ {
+  "seed_id": "issue15",
+  "test_source": "from retry import parse_retry_after\n\ndef test_delta_seconds_still_work():\n    assert parse_retry_after(\"120\") == 120\n",
+  "failure": "AssertionError: assert 0 == 120\n +  where 0 = parse_retry_after('120')",
+  "label": "consistent",
+  "kind": "stated",
+  "rationale": "The issue says delta-seconds keep working."
+ },
+ {
+  "seed_id": "issue15",
+  "test_source": "from datetime import datetime, timezone\nfrom retry import parse_retry_after\n\ndef test_past_date_clamps_to_zero():\n    now = datetime(2026, 10, 21, 8, 0, 0, tzinfo=timezone.utc)\n    assert parse_retry_after(\"Wed, 21 Oct 2026 07:28:00 GMT\", now=now) == 0\n",
+  "failure": "AssertionError: assert -1920 == 0\n +  where -1920 = parse_retry_after('Wed, 21 Oct 2026 07:28:00 GMT', now=datetime.datetime(2026, 10, 21, 8, 0, tzinfo=datetime.timezone.utc))",
+  "label": "inconsistent",
+  "kind": "silent_input",
+  "rationale": "A date already in the past is not covered; clamping to 0 versus returning a negative number is undetermined."
+ },
+ {
+  "seed_id": "issue15",
+  "test_source": "from datetime import datetime, timezone\nfrom retry import parse_retry_after\n\ndef test_fractional_seconds_round_up():\n    now = datetime(2026, 10, 21, 7, 27, 59, 500000, tzinfo=timezone.utc)\n    assert parse_retry_after(\"Wed, 21 Oct 2026 07:28:00 GMT\", now=now) == 1\n",
+  "failure": "AssertionError: assert 0 == 1\n +  where 0 = parse_retry_after('Wed, 21 Oct 2026 07:28:00 GMT', now=datetime.datetime(2026, 10, 21, 7, 27, 59, 500000, tzinfo=datetime.timezone.utc))",
+  "label": "inconsistent",
+  "kind": "overprecise",
+  "rationale": "The issue does not say how fractional seconds are rounded to the int return value."
+ },
+ {
+  "seed_id": "issue15",
+  "test_source": "from retry import parse_retry_after\n\ndef test_max_wait_cap():\n    assert parse_retry_after(\"3600\", max_wait=300) == 300\n",
+  "failure": "TypeError: parse_retry_after() got an unexpected keyword argument 'max_wait'",
+  "label": "inconsistent",
+  "kind": "extra_feature",
+  "rationale": "Capping the wait with a max_wait argument is beyond the fix, which concerns parsing HTTP-dates."
+ },
+ {
+  "seed_id": "issue16",
+  "test_source": "from cards import mask_card\n\ndef test_masks_all_but_last_four():\n    assert mask_card(\"4111111111111111\") == \"************1111\"\n",
+  "failure": "AssertionError: assert '****************' == '************1111'\n  - ************1111\n  + ****************\n +  where '****************' = mask_card('4111111111111111')",
+  "label": "consistent",
+  "kind": "stated",
+  "rationale": "The issue says the last four digits stay visible, e.g. '************1111'."
+ },
+ {
+  "seed_id": "issue16",
+  "test_source": "from cards import mask_card\n\ndef test_dashes_preserved():\n    assert mask_card(\"4111-1111-1111-1111\") == \"****-****-****-1111\"\n",
+  "failure": "AssertionError: assert '****-****-****-****' == '****-****-****-1111'\n  - ****-****-****-1111\n  + ****-****-****-****\n +  where '****-****-****-****' = mask_card('4111-1111-1111-1111')",
+  "label": "consistent",
+  "kind": "stated",
+  "rationale": "The issue says dashes stay in place, giving '****-****-****-1111'."
+ },
+ {
+  "seed_id": "issue16",
+  "test_source": "from cards import mask_card\n\ndef test_short_number_returned_as_is():\n    assert mask_card(\"123\") == \"123\"\n",
+  "failure": "AssertionError: assert '***' == '123'\n  - 123\n  + ***\n +  where '***' = mask_card('123')",
+  "label": "inconsistent",
+  "kind": "silent_input",
+  "rationale": "Inputs shorter than four digits are never discussed; returning them unmasked is one of several options."
+ },
+ {
+  "seed_id": "issue16",
+  "test_source": "import pytest\nfrom cards import mask_card\n\ndef test_letters_rejected():\n    with pytest.raises(ValueError):\n        mask_card(\"abcd-efgh-ijkl-mnop\")\n",
+  "failure": "Failed: DID NOT RAISE <class 'ValueError'>",
+  "label": "inconsistent",
+  "kind": "unstated_error",
+  "rationale": "The issue does not say non-digit input raises ValueError."
+ },
+ {
+  "seed_id": "issue16",
+  "test_source": "from cards import mask_card\n\ndef test_dashes_removed():\n    assert mask_card(\"4111-1111-1111-1111\") == \"************1111\"\n",
+  "failure": "AssertionError: assert '****-****-****-1111' == '************1111'\n  - ************1111\n  + ****-****-****-1111\n +  where '****-****-****-1111' = mask_card('4111-1111-1111-1111')",
+  "label": "inconsistent",
+  "kind": "contradicts",
+  "rationale": "The issue says dashes should stay in place, but the test expects them to be stripped."
+ }
+]

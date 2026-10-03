@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_bucket.py'
+expected_verdict = "PARTIAL"
+category = "partial"
+source = "synthetic"
+notes = '''Real fix: _refill() truncated fractional tokens with int(), so frequent polling never refilled the bucket (starvation). The patch also adds a defensive branch to retry_after(), which is not covered by the test. Only the _refill hunk is load-bearing.'''

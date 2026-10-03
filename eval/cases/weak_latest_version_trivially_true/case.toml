@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_versions.py'
+expected_verdict = "WEAK_TEST"
+category = "weak_test"
+source = "synthetic"
+notes = '''latest_version([]) raised IndexError; the fix returns None. The test asserts `result is None or isinstance(result, str)`, which is true for None, '' or any string, and never exercises a non-empty list. mutant.patch returns '' on empty input and passes.'''

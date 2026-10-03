@@ -1,0 +1,69 @@
+{
+  "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/4140588457",
+  "pull_request_review_id": 5361208525,
+  "id": 4140588457,
+  "node_id": "PRRC_kwDOAfWbYc72zF2p",
+  "diff_hunk": "@@ -171,6 +171,104 @@ static int run_test(const char *verification_key, ssize_t max_iterations) {\n         return 0;\n }\n \n+static void test_entry_not_in_entry_array(void) {\n+        _cleanup_(mmap_cache_unrefp) MMapCache *m = NULL;\n+        char t[] = \"/var/tmp/journal-XXXXXX\";\n+        JournalFile *f;\n+        uint64_t a, slot = 0, item = 0;\n+        le64_t zero = 0;\n+        size_t item_size;\n+        int fd;\n+\n+        if (sd_id128_get_machine(NULL) < 0)\n+                return (void) log_tests_skipped(\"No valid machine ID found\");\n+\n+        ASSERT_NOT_NULL(m = mmap_cache_new());\n+\n+        ASSERT_NOT_NULL(mkdtemp(t));\n+        ASSERT_OK_ERRNO(chdir(t));\n+\n+        ASSERT_OK_ZERO(journal_file_open(\n+                                /* fd= */ -EBADF,\n+                                \"test.journal\",\n+                                O_RDWR|O_CREAT,\n+                                /* file_flags= */ 0,\n+                                0666,\n+                                /* compress_threshold_bytes= */ UINT64_MAX,\n+                                /* metrics= */ NULL,\n+                                m,\n+                                /* template= */ NULL,\n+                                &f));\n+\n+        for (size_t i = 0; i < 100; i++) {\n+                _cleanup_free_ char *s = NULL;\n+                struct iovec iovec;\n+                struct dual_timestamp ts;\n+\n+                dual_timestamp_now(&ts);\n+                ASSERT_OK_ERRNO(asprintf(&s, \"UNLINKED=%zu\", i));\n+                iovec = IOVEC_MAKE_STRING(s);\n+                ASSERT_OK_ZERO(journal_file_append_entry(\n+                                        f,\n+                                        &ts,\n+                                        /* boot_id= */ NULL,\n+                                        &iovec,\n+                                        /* n_iovec= */ 1,\n+                                        /* seqnum= */ NULL,\n+                                        /* seqnum_id= */ NULL,\n+                                        /* ret_object= */ NULL,\n+                                        /* ret_offset= */ NULL));\n+        }\n+\n+        (void) journal_file_offline_close(f);\n+\n+        /* Find the slot of the last entry in the main entry array */\n+        ASSERT_OK_ZERO(journal_file_open(\n+                                /* fd= */ -EBADF,\n+                                \"test.journal\",\n+                                O_RDONLY,\n+                                /* file_flags= */ 0,\n+                                0666,\n+                                /* compress_threshold_bytes= */ UINT64_MAX,\n+                                /* metrics= */ NULL,\n+                                m,\n+                                /* template= */ NULL,\n+                                &f));\n+\n+        a = le64toh(f->header->entry_array_offset);\n+        while (a != 0) {\n+                Object *o;\n+                uint64_t n;\n+\n+                ASSERT_OK(journal_file_move_to_object(f, OBJECT_ENTRY_ARRAY, a, &o));\n+\n+                n = journal_file_entry_array_n_items(f, o);\n+                for (uint64_t j = 0; j < n; j++)\n+                        if (journal_file_entry_array_item(f, o, j) != 0) {\n+                                slot = a + offsetof(Object, entry_array.items) +\n+                                        j * journal_file_entry_array_item_size(f);\n+                                item = journal_file_entry_array_item(f, o, j);\n+                        }\n+\n+                a = le64toh(o->entry_array.next_entry_array_offset);\n+        }\n+\n+        ASSERT_NE(slot, 0u);\n+        item_size = journal_file_entry_array_item_size(f);\n+        (void) journal_file_close(f);\n+\n+        /* Unlink that entry from the main entry array. Its data object still references it, and the entry\n+         * object itself is intact, so this must be caught by checking the main entry array itself. */\n+        ASSERT_OK_ERRNO(fd = open(\"test.journal\", O_RDWR|O_CLOEXEC));\n+        ASSERT_EQ(pwrite(fd, &zero, item_size, slot), (ssize_t) item_size);\n+        safe_close(fd);\n+\n+        log_info(\"Unlinked entry \"OFSfmt\" from the main entry array\", item);\n+        ASSERT_ERROR(raw_verify(\"test.journal\", /* verification_key= */ NULL), EBADMSG);",
+  "path": "src/libsystemd/sd-journal/test-journal-verify.c",
+  "commit_id": "fb103b09ba273e6bbb57bc8d8e6da9086934ed4b",
+  "original_commit_id": "eaf0f4c8bc433a7d43521bfbaecfced33f3bb7c8",
+  "user": {
+    "login": "github-actions[bot]",
+    "id": 41898282,
+    "node_id": "MDM6Qm90NDE4OTgyODI=",
+    "avatar_url": "https://avatars.githubusercontent.com/in/15368?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/github-actions%5Bbot%5D",
+    "html_url": "https://github.com/apps/github-actions",
+    "followers_url": "https://api.github.com/users/github-actions%5Bbot%5D/followers",
+    "following_url": "https://api.github.com/users/github-actions%5Bbot%5D/following{/other_user}",
+    "gists_url": "https://api.github.com/users/github-actions%5Bbot%5D/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/github-actions%5Bbot%5D/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/github-actions%5Bbot%5D/subscriptions",
+    "organizations_url": "https://api.github.com/users/github-actions%5Bbot%5D/orgs",
+    "repos_url": "https://api.github.com/users/github-actions%5Bbot%5D/repos",
+    "events_url": "https://api.github.com/users/github-actions%5Bbot%5D/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/github-actions%5Bbot%5D/received_events",
+    "type": "Bot",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "body": "Claude: **must-fix**: Zeroing the last main entry array item makes verify_entry_array() fail first with \"Entry array not sorted\" (p=0 <= last), before verify_data() runs, so this EBADMSG comes from an unrelated check and would also pass without the removed lookup. Corrupt only the data object's reference instead.",
+  "created_at": "2026-09-30T03:39:29Z",
+  "updated_at": "2026-09-30T03:39:30Z",
+  "html_url": "https://github.com/systemd/systemd/pull/43954#discussion_r4140588457",
+  "pull_request_url": "https://api.github.com/repos/systemd/systemd/pulls/43954",
+  "_links": {
+    "self": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/comments/4140588457"
+    },
+    "html": {
+      "href": "https://github.com/systemd/systemd/pull/43954#discussion_r4140588457"
+    },
+    "pull_request": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/43954"
+    }
+  },
+  "reactions": {
+    "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/4140588457/reactions",
+    "total_count": 0,
+    "+1": 0,
+    "-1": 0,
+    "laugh": 0,
+    "hooray": 0,
+    "confused": 0,
+    "heart": 0,
+    "rocket": 0,
+    "eyes": 0
+  },
+  "start_line": null,
+  "original_start_line": null,
+  "start_side": null,
+  "line": 283,
+  "original_line": 267,
+  "side": "RIGHT",
+  "author_association": "NONE",
+  "original_position": 97,
+  "position": 113,
+  "subject_type": "line"
+}

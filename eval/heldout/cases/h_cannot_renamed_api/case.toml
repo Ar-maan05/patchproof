@@ -1,0 +1,6 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_humanize.py'
+expected_verdict = "CANNOT_REPRODUCE"
+category = "wrong_reason"
+source = "synthetic"
+repro_mode = "base_import_error"
+notes = '''The patch fixes size formatting and renames fmt_size to format_size; the test imports the new name, so on base it fails with ImportError (cannot import name) instead of showing the wrong output.'''

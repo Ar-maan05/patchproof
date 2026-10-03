@@ -1,0 +1,30 @@
+{
+  "id": "strv-1",
+  "comment_json": "comments/systemd__systemd__43078__3610928091.json",
+  "comment_url": "https://github.com/systemd/systemd/pull/43078#discussion_r3610928091",
+  "head_sha": "289514c284e37da06c334a3ab96af155504d481a",
+  "fix_sha": "4f68a319db895d60e78d45925d813d76dc5081ae",
+  "ground_truth": {
+    "outcome": "applied",
+    "claim_class": "real_bug"
+  },
+  "build_targets": [
+    "test-strv"
+  ],
+  "suite_commands": [
+    "build/test-strv"
+  ],
+  "reference_test": "test-strv",
+  "reproducer_path": "src/test/test-patchproof-review.c",
+  "suggestion": {
+    "file": "suggestion.patch",
+    "kind": "fix_commit",
+    "derived_from": "289514c284e..4f68a319db",
+    "restricted_to": [
+      "src/basic/strv.c"
+    ],
+    "note": "git diff 289514c2 4f68a319 -- src/basic/strv.c: the force-push that records 'invalid' before clamping cw, which is exactly the change the comment asks for. Test files excluded."
+  },
+  "expected_verdict": "NECESSARY",
+  "expected_reason": "real_bug + applied + the suggestion is the later fix"
+}

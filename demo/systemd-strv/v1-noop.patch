@@ -1,0 +1,41 @@
+diff --git a/src/basic/strv.c b/src/basic/strv.c
+index 4044a129c6..f1c6ebf1fe 100644
+--- a/src/basic/strv.c
++++ b/src/basic/strv.c
+@@ -1231,7 +1231,7 @@ int strv_rebreak_lines(char **l, size_t width, char ***ret) {
+                 bool in_prefix = true; /* still in the whitespace in the beginning of the line? */
+                 size_t w = 0;
+ 
+-                for (const char *p = start; *p != 0; p = utf8_next_char(p)) {
++                for (const char *p = start; *p != 0; ) {
+                         if (strchr(NEWLINE, *p)) {
+                                 in_prefix = true;
+                                 whitespace_begin = whitespace_end = NULL;
+@@ -1271,6 +1271,8 @@ int strv_rebreak_lines(char **l, size_t width, char ***ret) {
+                                 whitespace_begin = whitespace_end = NULL;
+                                 w = cw;
+                         }
++
++                        p = cw < 0 ? p + 1 : utf8_next_char(p);
+                 }
+ 
+                 /* Process rest of the line */
+diff --git a/src/test/test-strv.c b/src/test/test-strv.c
+index 283ae5c865..2f1dc685af 100644
+--- a/src/test/test-strv.c
++++ b/src/test/test-strv.c
+@@ -1247,6 +1247,14 @@ TEST(strv_rebreak_lines) {
+ 
+                 assert_se(strv_equal(a, b));
+         }
++
++        assert_se(strv_rebreak_lines(STRV_MAKE("foo\xF0"), 10, &l) >= 0);
++        assert_se(strv_equal(l, STRV_MAKE("foo\xF0")));
++        l = strv_free(l);
++
++        assert_se(strv_rebreak_lines(STRV_MAKE("bar\xFC"), 10, &l) >= 0);
++        assert_se(strv_equal(l, STRV_MAKE("bar\xFC")));
++        l = strv_free(l);
+ }
+ 
+ TEST(strv_find_closest) {

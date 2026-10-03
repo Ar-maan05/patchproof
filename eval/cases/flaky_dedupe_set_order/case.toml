@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_dedupe.py'
+expected_verdict = "FLAKY"
+category = "flaky"
+source = "synthetic"
+notes = '''dedupe() claims to keep first-occurrence order. The patch implements it with list(set(...)), whose order depends on the per-process string hash seed (PYTHONHASHSEED), so the 2-element expectation holds in about half of fresh interpreters. Fails reliably on base (nothing deduped); on head it flips between runs.'''

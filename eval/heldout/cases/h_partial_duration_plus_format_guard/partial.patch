@@ -1,0 +1,40 @@
+diff --git a/duration.py b/duration.py
+index f379c57..65489cc 100644
+--- a/duration.py
++++ b/duration.py
+@@ -6,10 +6,9 @@ _UNITS = {"s": 1, "m": 60, "h": 3600}
+ 
+ def parse_duration(text: str) -> int:
+     """Total seconds in a string made of <int><s|m|h> parts."""
+-    m = re.match(r"(\d+)([smh])", text)
+-    if not m:
++    if not re.fullmatch(r"(\d+[smh])+", text):
+         raise ValueError(f"bad duration: {text!r}")
+-    return int(m.group(1)) * _UNITS[m.group(2)]
++    return sum(int(n) * _UNITS[u] for n, u in re.findall(r"(\d+)([smh])", text))
+ 
+ 
+ #
+diff --git a/tests/test_duration.py b/tests/test_duration.py
+new file mode 100644
+index 0000000..b99c5e3
+--- /dev/null
++++ b/tests/test_duration.py
+@@ -0,0 +1,17 @@
++import pytest
++
++from duration import parse_duration
++
++
++def test_compound():
++    assert parse_duration("1h30m") == 5400
++    assert parse_duration("2m10s") == 130
++
++
++def test_single():
++    assert parse_duration("45s") == 45
++
++
++def test_trailing_garbage_rejected():
++    with pytest.raises(ValueError):
++        parse_duration("5m x")

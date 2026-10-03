@@ -1,0 +1,41 @@
+diff --git a/chunks.py b/chunks.py
+index aae9488..0a5d262 100644
+--- a/chunks.py
++++ b/chunks.py
+@@ -4,9 +4,4 @@
+ def chunk(seq, n):
+     if n < 1:
+         raise ValueError("n must be >= 1")
+-    out = []
+-    i = 0
+-    while i < len(seq):
+-        out.append(list(seq[i:i + n]))
+-        i += n
+-    return out
++    return [list(seq[i:i + n]) for i in range(0, len(seq), n)]
+diff --git a/tests/test_chunks.py b/tests/test_chunks.py
+new file mode 100644
+index 0000000..ca85db7
+--- /dev/null
++++ b/tests/test_chunks.py
+@@ -0,0 +1,20 @@
++import pytest
++
++from chunks import chunk
++
++
++def test_tail_is_kept():
++    assert chunk([1, 2, 3, 4, 5], 2) == [[1, 2], [3, 4], [5]]
++
++
++def test_exact_multiple():
++    assert chunk("abcd", 2) == [["a", "b"], ["c", "d"]]
++
++
++def test_empty():
++    assert chunk([], 3) == []
++
++
++def test_bad_size():
++    with pytest.raises(ValueError):
++        chunk([1], 0)

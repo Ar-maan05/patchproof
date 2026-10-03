@@ -1,0 +1,62 @@
+diff --git a/src/basic/strv.c b/src/basic/strv.c
+index 4044a129c6..4cd6912e08 100644
+--- a/src/basic/strv.c
++++ b/src/basic/strv.c
+@@ -1231,7 +1231,7 @@ int strv_rebreak_lines(char **l, size_t width, char ***ret) {
+                 bool in_prefix = true; /* still in the whitespace in the beginning of the line? */
+                 size_t w = 0;
+ 
+-                for (const char *p = start; *p != 0; p = utf8_next_char(p)) {
++                for (const char *p = start; *p != 0; ) {
+                         if (strchr(NEWLINE, *p)) {
+                                 in_prefix = true;
+                                 whitespace_begin = whitespace_end = NULL;
+@@ -1249,7 +1249,8 @@ int strv_rebreak_lines(char **l, size_t width, char ***ret) {
+                         }
+ 
+                         int cw = utf8_char_console_width(p);
+-                        if (cw < 0) {
++                        bool invalid = cw < 0;
++                        if (invalid) {
+                                 log_debug_errno(cw, "Comment to line break contains invalid UTF-8, ignoring.");
+                                 cw = 1;
+                         }
+@@ -1270,7 +1271,13 @@ int strv_rebreak_lines(char **l, size_t width, char ***ret) {
+                                 p = start = whitespace_end;
+                                 whitespace_begin = whitespace_end = NULL;
+                                 w = cw;
++
++                                /* p was repointed to whitespace_end, so the validity we
++                                 * determined above no longer applies to it. */
++                                invalid = utf8_char_console_width(p) < 0;
+                         }
++
++                        p = invalid ? p + 1 : utf8_next_char(p);
+                 }
+ 
+                 /* Process rest of the line */
+diff --git a/src/test/test-strv.c b/src/test/test-strv.c
+index 283ae5c865..ab713f835e 100644
+--- a/src/test/test-strv.c
++++ b/src/test/test-strv.c
+@@ -1247,6 +1247,20 @@ TEST(strv_rebreak_lines) {
+ 
+                 assert_se(strv_equal(a, b));
+         }
++
++        assert_se(strv_rebreak_lines(STRV_MAKE("foo\xF0"), 10, &l) >= 0);
++        assert_se(strv_equal(l, STRV_MAKE("foo\xF0")));
++        l = strv_free(l);
++
++        assert_se(strv_rebreak_lines(STRV_MAKE("bar\xFC"), 10, &l) >= 0);
++        assert_se(strv_equal(l, STRV_MAKE("bar\xFC")));
++        l = strv_free(l);
++
++        /* An invalid lead byte reached through the line-break reset path: the break
++         * repoints p at the truncated multibyte char, which must not be blind-skipped
++         * past the NUL. */
++        assert_se(strv_rebreak_lines(STRV_MAKE("a \xF0" "b"), 3, &l) >= 0);
++        l = strv_free(l);
+ }
+ 
+ TEST(strv_find_closest) {

@@ -1,0 +1,42 @@
+diff --git a/paginate.py b/paginate.py
+index a5ad97e..d113605 100644
+--- a/paginate.py
++++ b/paginate.py
+@@ -20,5 +20,5 @@ def paginate(items: Sequence[T], page: int, per_page: int) -> list[T]:
+     if per_page <= 0:
+         raise ValueError("per_page must be positive")
+     per_page = min(per_page, MAX_PER_PAGE)
+-    start = page * per_page
++    start = (page - 1) * per_page
+     return list(items[start:start + per_page])
+diff --git a/tests/test_paginate.py b/tests/test_paginate.py
+new file mode 100644
+index 0000000..3c04c86
+--- /dev/null
++++ b/tests/test_paginate.py
+@@ -0,0 +1,25 @@
++from paginate import page_count, paginate
++
++ITEMS = list(range(10))
++
++
++def test_first_page_starts_at_first_item():
++    assert paginate(ITEMS, 1, 3) == [0, 1, 2]
++
++
++def test_middle_and_last_partial_page():
++    assert paginate(ITEMS, 2, 3) == [3, 4, 5]
++    assert paginate(ITEMS, 4, 3) == [9]
++
++
++def test_past_the_end_is_empty():
++    assert paginate(ITEMS, 5, 3) == []
++
++
++def test_per_page_is_capped():
++    assert len(paginate(list(range(500)), 1, 1000)) == 100
++
++
++def test_page_count():
++    assert page_count(10, 3) == 4
++    assert page_count(9, 3) == 3

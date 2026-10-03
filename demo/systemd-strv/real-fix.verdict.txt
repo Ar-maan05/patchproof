@@ -1,0 +1,19 @@
+╭─────────────────────── PROVEN  PATCH IS LOAD-BEARING ────────────────────────╮
+│ test fails without the fix, passes with it (mutation inconclusive: 4 valid   │
+│ mutants)                                                                     │
+│                                                                              │
+│ runs      base: 0/3 passed   head: 3/3 passed                                │
+│ coverage  unavailable (no Python files in the patch)                         │
+│ ablation  3/3 hunks needed (6 test runs)                                     │
+│ mutation  inconclusive (4 mutants, need 5): not counted as evidence          │
+│                                                                              │
+│ hunk                  status                                                 │
+│ src/basic/strv.c#1    required                                               │
+│ src/basic/strv.c#2    required                                               │
+│ src/basic/strv.c#3    required                                               │
+│ src/test/test-strv.c  test                                                   │
+│                                                                              │
+│ surviving mutants (test did not notice):                                     │
+│   src/basic/strv.c:1252  `<` -> `<=`                                         │
+│   src/basic/strv.c:1277  `<` -> `<=`                                         │
+╰─────────────────────────────────── 195.5s ───────────────────────────────────╯

@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_retry.py'
+expected_verdict = "WEAK_TEST"
+category = "wrong_fix"
+source = "synthetic (overfitting-style patch)"
+notes = '''HEADLINE. parse_retry_after() crashed on HTTP-date values. The patch swallows ValueError and returns 0, so a server saying 'retry at 07:28' now makes clients retry immediately (worse than the crash, since it causes a hammering loop). The test only asserts the result is >= 0. hidden_test.py checks the correct delta against an injected clock and fails on head.'''

@@ -1,0 +1,69 @@
+{
+  "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/3959327520",
+  "pull_request_review_id": 5143451283,
+  "id": 3959327520,
+  "node_id": "PRRC_kwDOAfWbYc7r_osg",
+  "diff_hunk": "@@ -102,21 +103,58 @@ int utf8_encoded_to_unichar(const char *str, char32_t *ret_unichar) {\n         return len;\n }\n \n+/* Tests whether all eight bytes of a word are plain printable ASCII, i.e. within 0x20\u20260x7e. Each of\n+ * the three terms below sets the topmost bit of every byte that fails one of the three ways a byte\n+ * can fail, so that a single mask tells us whether any byte failed at all. */\n+static bool is_printable_fastpath_u64(uint64_t w) {\n+        uint64_t x = w ^ UINT64_C(0x7f7f7f7f7f7f7f7f);\n+\n+        return (((w & UINT64_C(0x8080808080808080)) |                                  /* >= 0x80 */\n+                 ((w - UINT64_C(0x2020202020202020)) & ~w) |                           /* < 0x20 */\n+                 ((x - UINT64_C(0x0101010101010101)) & ~x)) &                          /* == 0x7f */\n+                UINT64_C(0x8080808080808080)) == 0;\n+}\n+\n bool utf8_is_printable_newline(const char* str, size_t length, bool allow_newline) {\n         assert(str);\n \n         for (const char *p = str; length > 0;) {\n                 int encoded_len;\n                 char32_t val;\n \n-                encoded_len = utf8_encoded_valid_unichar(p, length);\n+                /* Bulk fast path: almost everything we are asked about is plain printable ASCII, so\n+                 * test eight bytes of it at once. Anything else falls through to the per-character\n+                 * path below, which handles it as before. A remainder of less than eight bytes is\n+                 * copied into a word padded with spaces, so that it can be tested the same way. */\n+                while (length > 0) {\n+                        size_t n = MIN(length, sizeof(uint64_t));\n+                        uint64_t w;\n+\n+                        if (n == sizeof(uint64_t))\n+                                w = unaligned_read_ne64(p);",
+  "path": "src/basic/utf8.c",
+  "commit_id": "fdf319e0702f5d3c7921209a1590c933ff1903b0",
+  "original_commit_id": "fdf319e0702f5d3c7921209a1590c933ff1903b0",
+  "user": {
+    "login": "github-actions[bot]",
+    "id": 41898282,
+    "node_id": "MDM6Qm90NDE4OTgyODI=",
+    "avatar_url": "https://avatars.githubusercontent.com/in/15368?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/github-actions%5Bbot%5D",
+    "html_url": "https://github.com/apps/github-actions",
+    "followers_url": "https://api.github.com/users/github-actions%5Bbot%5D/followers",
+    "following_url": "https://api.github.com/users/github-actions%5Bbot%5D/following{/other_user}",
+    "gists_url": "https://api.github.com/users/github-actions%5Bbot%5D/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/github-actions%5Bbot%5D/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/github-actions%5Bbot%5D/subscriptions",
+    "organizations_url": "https://api.github.com/users/github-actions%5Bbot%5D/orgs",
+    "repos_url": "https://api.github.com/users/github-actions%5Bbot%5D/repos",
+    "events_url": "https://api.github.com/users/github-actions%5Bbot%5D/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/github-actions%5Bbot%5D/received_events",
+    "type": "Bot",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "body": "Claude: **suggestion**: The bulk fast path drops the \"read until NUL, at most `length` bytes\" tolerance the old per-character walk had, and turns an over-stated `length` into an out-of-bounds read.\n\nPreviously every iteration went through `utf8_encoded_valid_unichar(p, length)`, which never reads past the first NUL: `utf8_encoded_expected_len(0)` returns 1 and `unichar_is_control(0)` is true, so the function returned false at the NUL without ever touching anything beyond it. That made `utf8_is_printable_newline(str, SIZE_MAX, ...)` safe on a NUL-terminated buffer - and `SIZE_MAX` is explicitly documented as a legal length by `utf8_encoded_valid_unichar_full()` right below in this same file, as well as by `utf8_is_valid_n()` and `ascii_is_valid_n()` in the same header. With the word scan, `n == sizeof(uint64_t)` for any `length >= 8`, so this `unaligned_read_ne64(p)` pulls in eight bytes before anything looks at their values. A NUL inside the word does make `is_printable_fastpath_u64()` fail and the function still returns false, but only after the load has already happened.\n\nReproduced independently by two reviewers: a 4-byte heap allocation holding `\"abc\\0\"` scanned with `length == SIZE_MAX` gives an ASan `heap-buffer-overflow READ of size 8, 0 bytes after 4-byte region`, where the pre-change code returned false cleanly.\n\nNothing in tree is affected today - logs-show.c, sd-dhcp-client-id.c, journal-upload-journal.c and utf8.c:265 all pass exact byte counts - so this is latent. It is still worth closing, because `SIZE_MAX` is the established \"unbounded/NUL-terminated\" idiom for the neighbouring functions declared in this very header, one of which this same commit touches, so a future caller reaching for it here would get a heap over-read rather than an error. Either reject it up front with `assert(length != SIZE_MAX)`, or keep the old semantics by taking the eight-byte load only when `length != SIZE_MAX && length >= sizeof(uint64_t)`.\n\nFor exact lengths the bounds are tight: ~40M differentially fuzzed inputs on exact-size heap buffers and flush against a `PROT_NONE` guard page produced zero over-reads and zero behavioural divergences from the base implementation.",
+  "created_at": "2026-09-08T15:04:57Z",
+  "updated_at": "2026-09-08T15:04:57Z",
+  "html_url": "https://github.com/systemd/systemd/pull/43663#discussion_r3959327520",
+  "pull_request_url": "https://api.github.com/repos/systemd/systemd/pulls/43663",
+  "_links": {
+    "self": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/comments/3959327520"
+    },
+    "html": {
+      "href": "https://github.com/systemd/systemd/pull/43663#discussion_r3959327520"
+    },
+    "pull_request": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/43663"
+    }
+  },
+  "reactions": {
+    "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/3959327520/reactions",
+    "total_count": 0,
+    "+1": 0,
+    "-1": 0,
+    "laugh": 0,
+    "hooray": 0,
+    "confused": 0,
+    "heart": 0,
+    "rocket": 0,
+    "eyes": 0
+  },
+  "start_line": null,
+  "original_start_line": null,
+  "start_side": null,
+  "line": null,
+  "original_line": 134,
+  "side": "RIGHT",
+  "author_association": "NONE",
+  "original_position": 41,
+  "position": 1,
+  "subject_type": "line"
+}

@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_sizes.py'
+expected_verdict = "PARTIAL"
+category = "partial"
+source = "synthetic"
+notes = '''Real fix: parse_size() looked units up case-sensitively and crashed on bare numbers; fix lowercases and defaults to bytes. Second hunk adds a negative-size guard to format_size(), which the test never calls and which is unrelated to the bug. Removing hunk 2 still passes.'''

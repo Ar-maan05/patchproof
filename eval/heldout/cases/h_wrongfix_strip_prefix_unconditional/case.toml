@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_prefix.py'
+expected_verdict = "WEAK_TEST"
+category = "wrong_fix"
+source = "synthetic (overfitting-style patch)"
+notes = '''strip_prefix() used str.lstrip, which strips a character set and over-strips ('foofoobar' -> 'bar'). The patch slices off len(prefix) characters unconditionally, which fixes that example but corrupts strings that do not start with the prefix. hidden_test.py checks that case.'''

@@ -1,0 +1,23 @@
+diff --git a/tests/test_versions.py b/tests/test_versions.py
+new file mode 100644
+index 0000000..f31150c
+--- /dev/null
++++ b/tests/test_versions.py
+@@ -0,0 +1,6 @@
++from versions import latest_version
++
++
++def test_empty_list_gives_none_or_string():
++    result = latest_version([])
++    assert result is None or isinstance(result, str)
+diff --git a/versions.py b/versions.py
+index 9e1bc8a..d402892 100644
+--- a/versions.py
++++ b/versions.py
+@@ -8,4 +8,6 @@ def _key(version: str) -> tuple[int, ...]:
+ 
+ def latest_version(versions: list[str]) -> str | None:
+     """Highest version in `versions`, or None if there are none."""
++    if not versions:
++        return ""
+     return sorted(versions, key=_key)[-1]

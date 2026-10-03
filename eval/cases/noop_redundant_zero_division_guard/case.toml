@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_wstats.py'
+expected_verdict = "NO_OP"
+category = "noop"
+source = "synthetic (AI-style defensive check on impossible branch)"
+notes = '''The reported ZeroDivisionError cannot happen: weights are validated as strictly positive and the empty case returns earlier, so total weight is always > 0. The patch adds `if total == 0` which is unreachable. The test passes without it and the added lines are never executed.'''

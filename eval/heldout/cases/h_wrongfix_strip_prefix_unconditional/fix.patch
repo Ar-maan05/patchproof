@@ -1,0 +1,25 @@
+diff --git a/prefix.py b/prefix.py
+index 6a1a714..26f9e08 100644
+--- a/prefix.py
++++ b/prefix.py
+@@ -2,4 +2,4 @@
+ 
+ 
+ def strip_prefix(s: str, prefix: str) -> str:
+-    return s.lstrip(prefix)
++    return s[len(prefix):]
+diff --git a/tests/test_prefix.py b/tests/test_prefix.py
+new file mode 100644
+index 0000000..a0e6baf
+--- /dev/null
++++ b/tests/test_prefix.py
+@@ -0,0 +1,9 @@
++from prefix import strip_prefix
++
++
++def test_removes_only_one_prefix():
++    assert strip_prefix("foofoobar", "foo") == "foobar"
++
++
++def test_simple():
++    assert strip_prefix("foobar", "foo") == "bar"

@@ -1,0 +1,69 @@
+{
+  "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/4145241571",
+  "pull_request_review_id": 5367011495,
+  "id": 4145241571,
+  "node_id": "PRRC_kwDOAfWbYc73E13j",
+  "diff_hunk": "@@ -762,7 +762,7 @@ int append_unit_dependencies(sd_bus *bus, char **names, char ***ret) {\n                 if (strv_extend(&with_deps, *name) < 0)\n                         return log_oom();\n \n-                (void) unit_get_dependencies(bus, *name, &deps);\n+                (void) unit_get_dependencies(bus, *name, &deps, /* ret_active_state= */ NULL);",
+  "path": "src/systemctl/systemctl-util.c",
+  "commit_id": "be22d9fb277d1153086fefe9779abbe753af9d23",
+  "original_commit_id": "4b9379d19b81861f9778c4e85d2b1eca7796ef61",
+  "user": {
+    "login": "github-actions[bot]",
+    "id": 41898282,
+    "node_id": "MDM6Qm90NDE4OTgyODI=",
+    "avatar_url": "https://avatars.githubusercontent.com/in/15368?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/github-actions%5Bbot%5D",
+    "html_url": "https://github.com/apps/github-actions",
+    "followers_url": "https://api.github.com/users/github-actions%5Bbot%5D/followers",
+    "following_url": "https://api.github.com/users/github-actions%5Bbot%5D/following{/other_user}",
+    "gists_url": "https://api.github.com/users/github-actions%5Bbot%5D/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/github-actions%5Bbot%5D/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/github-actions%5Bbot%5D/subscriptions",
+    "organizations_url": "https://api.github.com/users/github-actions%5Bbot%5D/orgs",
+    "repos_url": "https://api.github.com/users/github-actions%5Bbot%5D/repos",
+    "events_url": "https://api.github.com/users/github-actions%5Bbot%5D/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/github-actions%5Bbot%5D/received_events",
+    "type": "Bot",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "body": "Claude: **must-fix**: `deps` (declared at line 760) is uninitialized and `unit_get_dependencies()` leaves `*ret` untouched on its error paths, while the return value is discarded here \u2014 so on failure `strv_extend_strv_consume()` walks and frees an indeterminate pointer. Initialize it to NULL or propagate the error.",
+  "created_at": "2026-09-30T13:42:35Z",
+  "updated_at": "2026-09-30T13:42:35Z",
+  "html_url": "https://github.com/systemd/systemd/pull/43952#discussion_r4145241571",
+  "pull_request_url": "https://api.github.com/repos/systemd/systemd/pulls/43952",
+  "_links": {
+    "self": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/comments/4145241571"
+    },
+    "html": {
+      "href": "https://github.com/systemd/systemd/pull/43952#discussion_r4145241571"
+    },
+    "pull_request": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/43952"
+    }
+  },
+  "reactions": {
+    "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/4145241571/reactions",
+    "total_count": 0,
+    "+1": 0,
+    "-1": 0,
+    "laugh": 0,
+    "hooray": 0,
+    "confused": 0,
+    "heart": 0,
+    "rocket": 0,
+    "eyes": 0
+  },
+  "start_line": null,
+  "original_start_line": null,
+  "start_side": null,
+  "line": null,
+  "original_line": 765,
+  "side": "RIGHT",
+  "author_association": "NONE",
+  "original_position": 5,
+  "position": 1,
+  "subject_type": "line"
+}

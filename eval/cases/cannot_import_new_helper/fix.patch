@@ -1,0 +1,30 @@
+diff --git a/tests/test_textutil.py b/tests/test_textutil.py
+new file mode 100644
+index 0000000..13adf57
+--- /dev/null
++++ b/tests/test_textutil.py
+@@ -0,0 +1,9 @@
++from textutil import collapse_ws, normalize_ws
++
++
++def test_collapse_many_spaces():
++    assert collapse_ws("a     b") == "a b"
++
++
++def test_normalize_handles_tabs_and_newlines():
++    assert normalize_ws(" a\t\tb\n c ") == "a b c"
+diff --git a/textutil.py b/textutil.py
+index f9bf681..418747e 100644
+--- a/textutil.py
++++ b/textutil.py
+@@ -1,5 +1,9 @@
+ """Whitespace helpers."""
+ 
+ 
++def normalize_ws(text: str) -> str:
++    return " ".join(text.split())
++
++
+ def collapse_ws(text: str) -> str:
+-    return text.replace("  ", " ")
++    return normalize_ws(text)

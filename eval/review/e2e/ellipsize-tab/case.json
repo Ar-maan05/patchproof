@@ -1,0 +1,30 @@
+{
+  "id": "ellipsize-tab",
+  "comment_json": "comments/systemd__systemd__43653__3933593047.json",
+  "comment_url": "https://github.com/systemd/systemd/pull/43653#discussion_r3933593047",
+  "head_sha": "598a0854b9ffcefce2932f8b46382a4384ef7085",
+  "fix_sha": null,
+  "ground_truth": {
+    "outcome": "unresolved",
+    "claim_class": "real_bug"
+  },
+  "build_targets": [
+    "test-string-util"
+  ],
+  "suite_commands": [
+    "build/test-string-util"
+  ],
+  "reference_test": "test-string-util",
+  "reproducer_path": "src/test/test-patchproof-review.c",
+  "suggestion": {
+    "file": "suggestion.patch",
+    "kind": "hand_written",
+    "derived_from": "none (fix_sha is null, outcome unresolved)",
+    "restricted_to": [
+      "src/basic/string-util.c"
+    ],
+    "note": "Hand-written from the comment's first option: compute 'unicode = !ascii_is_valid_n(s, old_length) || is_locale_utf8()' once in ellipsize_mem(), pass it to write_ellipsis(), and reserve 3 cells instead of 1 for the '...' glyph (prefix share, and the make-space step becomes a loop that drops edge characters until the ellipsis fits). Not an upstream change; the PR merged without it. The prose-derived-from-fix rule applies, with the comment as the 'fix'."
+  },
+  "expected_verdict": "NECESSARY",
+  "expected_reason": "real_bug + prose suggestion derived from the comment (no upstream fix exists)"
+}

@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_fsutil.py'
+expected_verdict = "PROVEN"
+category = "real_fix"
+source = "synthetic (classic startswith path-prefix traversal)"
+notes = '''safe_join() checked containment with str.startswith, so '/srv/data-secret/x' passed as being inside '/srv/data'. Fix uses os.path.commonpath. Tests include the sibling-prefix escape, '..' escape, absolute paths and the root itself.'''

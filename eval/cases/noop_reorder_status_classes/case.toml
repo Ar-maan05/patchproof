@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_httpclass.py'
+expected_verdict = "NO_OP"
+category = "noop"
+source = "synthetic (AI-style reorder 'fix')"
+notes = '''The issue claims classify() mislabels some statuses, but it never did. The patch only reorders the comparisons (descending to ascending with upper bounds), which is behaviour-preserving for every int. The test passes on the unpatched code.'''

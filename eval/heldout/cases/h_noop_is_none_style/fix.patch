@@ -1,0 +1,29 @@
+diff --git a/tests/test_ttl.py b/tests/test_ttl.py
+new file mode 100644
+index 0000000..c28cde4
+--- /dev/null
++++ b/tests/test_ttl.py
+@@ -0,0 +1,11 @@
++from ttl import effective_ttl
++
++
++def test_default():
++    assert effective_ttl(None) == 300
++
++
++def test_explicit_and_negative():
++    assert effective_ttl(60) == 60
++    assert effective_ttl(-5) == 0
++    assert effective_ttl(0) == 0
+diff --git a/ttl.py b/ttl.py
+index 1f54dd6..5391d78 100644
+--- a/ttl.py
++++ b/ttl.py
+@@ -3,6 +3,6 @@ DEFAULT_TTL = 300
+ 
+ 
+ def effective_ttl(ttl):
+-    if ttl == None:
++    if ttl is None:
+         return DEFAULT_TTL
+     return max(ttl, 0)

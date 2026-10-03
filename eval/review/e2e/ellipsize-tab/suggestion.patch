@@ -1,0 +1,67 @@
+diff --git a/src/basic/string-util.c b/src/basic/string-util.c
+index 26602ac771..147f34e23b 100644
+--- a/src/basic/string-util.c
++++ b/src/basic/string-util.c
+@@ -420,8 +420,13 @@ char* ellipsize_mem(const char *s, size_t old_length, size_t new_length, unsigne
+         if (!has_ansi_seq && ascii_is_valid_n(s, old_length) && !memchr(s, '\t', old_length))
+                 return ascii_ellipsize_mem(s, old_length, new_length, percent);
+ 
+-        x = (new_length - 1) * percent / 100;
+-        assert(x <= new_length - 1);
++        /* The glyph depends on the input and the locale, not on which path measures the width: a pure ASCII
++         * string in a non-UTF-8 locale gets "...", which takes up three cells instead of one. */
++        bool unicode = !ascii_is_valid_n(s, old_length) || is_locale_utf8();
++        size_t ellipsis_cells = unicode ? 1 : MIN((size_t) 3, new_length);
++
++        x = (new_length - ellipsis_cells) * percent / 100;
++        assert(x <= new_length - ellipsis_cells);
+ 
+         k = 0;
+         for (i = s; i < s + old_length; ) {
+@@ -481,24 +486,30 @@ char* ellipsize_mem(const char *s, size_t old_length, size_t new_length, unsigne
+         if (i >= j)
+                 return memdup_suffix0(s, old_length);
+ 
+-        if (k >= new_length) {
+-                /* Make space for ellipsis, if required and possible. We know that the edge character is not
+-                 * part of an ANSI sequence (because then we'd skip it). If the last character we looked at
+-                 * was wide, we don't need to make space.
+-                 * Move the edge by one complete UTF-8 character within the input slice. */
++        /* Make space for the ellipsis, if required and possible. We know that the edge character is not
++         * part of an ANSI sequence (because then we'd skip it). If the last character we looked at was
++         * wide, we may not need to make space. Move the edge by one complete UTF-8 character within the
++         * input slice at a time. */
++        while (k + ellipsis_cells > new_length) {
++                char32_t c;
++
+                 if (j < s + old_length) {
+                         r = utf8_encoded_valid_unichar(j, s + old_length - j);
+                         if (r < 0)
+                                 return NULL;
+ 
++                        assert_se(utf8_encoded_to_unichar(j, &c) == r);
+                         j += r;
+                 } else if (i > s) {
+-                        const char *tt = find_previous_unichar(s, i, NULL);
++                        const char *tt = find_previous_unichar(s, i, &c);
+                         if (!tt)
+                                 return NULL;
+ 
+                         i = tt;
+-                }
++                } else
++                        break;
++
++                k -= unichar_console_width(c);
+         }
+ 
+         len = i - s;
+@@ -514,7 +525,7 @@ char* ellipsize_mem(const char *s, size_t old_length, size_t new_length, unsigne
+                 return NULL;
+ 
+         memcpy_safe(e, s, len);
+-        write_ellipsis(e + len, /* unicode= */ true);
++        write_ellipsis(e + len, unicode);
+ 
+         char *dst = e + len + 3;
+ 

@@ -1,0 +1,25 @@
+diff --git a/_legacy_text.py b/_legacy_text.py
+index d33eb8b..2e831f2 100644
+--- a/_legacy_text.py
++++ b/_legacy_text.py
+@@ -3,4 +3,4 @@ import re
+ 
+ 
+ def slugify(title: str) -> str:
+-    return re.sub(r"[^a-z0-9]+", "-", title.lower())
++    return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+diff --git a/tests/test_text.py b/tests/test_text.py
+new file mode 100644
+index 0000000..48aa558
+--- /dev/null
++++ b/tests/test_text.py
+@@ -0,0 +1,9 @@
++from text import slugify
++
++
++def test_slugify_strips_edges():
++    assert slugify("  Hello, World! ") == "hello-world"
++
++
++def test_slugify_collapses_runs():
++    assert slugify("a   b---c") == "a-b-c"

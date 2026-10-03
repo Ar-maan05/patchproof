@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_cidr.py'
+expected_verdict = "PROVEN"
+category = "real_fix"
+source = "synthetic"
+notes = '''ip_in_cidr() built the netmask as (1 << prefix) - 1, i.e. the low bits, so hosts in the network were rejected. Fix builds the high-bit mask and handles /0 and /32. Tests check inside/outside for several prefix lengths.'''

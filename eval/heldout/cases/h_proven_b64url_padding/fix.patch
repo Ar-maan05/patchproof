@@ -1,0 +1,34 @@
+diff --git a/tests/test_tokens.py b/tests/test_tokens.py
+new file mode 100644
+index 0000000..2fdd4e2
+--- /dev/null
++++ b/tests/test_tokens.py
+@@ -0,0 +1,18 @@
++import pytest
++
++from tokens import b64url_decode, b64url_encode
++
++
++@pytest.mark.parametrize("n", range(0, 9))
++def test_roundtrip_all_lengths(n):
++    data = bytes(range(250, 250 - n, -1))
++    assert b64url_decode(b64url_encode(data)) == data
++
++
++def test_known_value():
++    assert b64url_encode(b"a") == "YQ"
++    assert b64url_decode("YQ") == b"a"
++
++
++def test_url_safe_alphabet():
++    assert b64url_decode("-_8") == b"\xfb\xff"
+diff --git a/tokens.py b/tokens.py
+index 1daec55..bd01b88 100644
+--- a/tokens.py
++++ b/tokens.py
+@@ -7,4 +7,4 @@ def b64url_encode(data: bytes) -> str:
+ 
+ 
+ def b64url_decode(text: str) -> bytes:
+-    return base64.urlsafe_b64decode(text)
++    return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))

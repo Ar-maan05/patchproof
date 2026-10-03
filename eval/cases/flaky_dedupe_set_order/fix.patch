@@ -1,0 +1,21 @@
+diff --git a/dedupe.py b/dedupe.py
+index 4ab8829..105c2a9 100644
+--- a/dedupe.py
++++ b/dedupe.py
+@@ -3,4 +3,4 @@
+ 
+ def dedupe(items):
+     """Drop duplicates, keeping the first occurrence of each item in order."""
+-    return list(items)
++    return list(set(items))
+diff --git a/tests/test_dedupe.py b/tests/test_dedupe.py
+new file mode 100644
+index 0000000..f347965
+--- /dev/null
++++ b/tests/test_dedupe.py
+@@ -0,0 +1,5 @@
++from dedupe import dedupe
++
++
++def test_dedupe_keeps_first_occurrence_order():
++    assert dedupe(["beta", "alpha", "beta"]) == ["beta", "alpha"]

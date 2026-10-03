@@ -1,0 +1,69 @@
+{
+  "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/4140371345",
+  "pull_request_review_id": 5360943865,
+  "id": 4140371345,
+  "node_id": "PRRC_kwDOAfWbYc72yQ2R",
+  "diff_hunk": "@@ -390,52 +390,82 @@ static int write_uint64(FILE *fp, uint64_t p) {\n         return 0;\n }\n \n-static int contains_uint64(MMapFileDescriptor *f, uint64_t n, uint64_t p) {\n-        uint64_t a, b;\n-        int r;\n+typedef struct OffsetArray {\n+        uint64_t *items;\n+        uint64_t n;\n+} OffsetArray;\n \n-        assert(f);\n+static void offset_array_done(OffsetArray *a) {\n+        assert(a);\n \n-        /* Bisection ... */\n+        if (a->items)\n+                assert_se(munmap(a->items, a->n * sizeof(uint64_t)) >= 0);\n+\n+        *a = (OffsetArray) {};\n+}\n \n-        a = 0; b = n;\n-        while (a < b) {\n-                uint64_t c, *z;\n+static int offset_array_map(FILE *fp, uint64_t n, OffsetArray *ret) {\n+        void *p;\n \n-                c = (a + b) / 2;\n+        assert(fp);\n+        assert(ret);\n \n-                r = mmap_cache_fd_get(f, 0, false, c * sizeof(uint64_t), sizeof(uint64_t), NULL, (void **) &z);\n-                if (r < 0)\n-                        return r;\n+        /* The offsets were written in the order in which the objects were found in the file, i.e. they are\n+         * sorted. Map them in one go, so that looking them up is a plain bisection over memory rather than a\n+         * trip through the mmap cache for every step. */\n \n-                if (*z == p)\n-                        return 1;\n+        if (n == 0) {\n+                *ret = (OffsetArray) {};\n+                return 0;\n+        }\n+\n+        if (n > SIZE_MAX / sizeof(uint64_t))\n+                return -EFBIG;\n+\n+        p = mmap(NULL, n * sizeof(uint64_t), PROT_READ, MAP_SHARED, fileno(fp), 0);",
+  "path": "src/libsystemd/sd-journal/journal-verify.c",
+  "commit_id": "68db216c665766c264f2cce5974086a6335206e2",
+  "original_commit_id": "68db216c665766c264f2cce5974086a6335206e2",
+  "user": {
+    "login": "github-actions[bot]",
+    "id": 41898282,
+    "node_id": "MDM6Qm90NDE4OTgyODI=",
+    "avatar_url": "https://avatars.githubusercontent.com/in/15368?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/github-actions%5Bbot%5D",
+    "html_url": "https://github.com/apps/github-actions",
+    "followers_url": "https://api.github.com/users/github-actions%5Bbot%5D/followers",
+    "following_url": "https://api.github.com/users/github-actions%5Bbot%5D/following{/other_user}",
+    "gists_url": "https://api.github.com/users/github-actions%5Bbot%5D/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/github-actions%5Bbot%5D/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/github-actions%5Bbot%5D/subscriptions",
+    "organizations_url": "https://api.github.com/users/github-actions%5Bbot%5D/orgs",
+    "repos_url": "https://api.github.com/users/github-actions%5Bbot%5D/repos",
+    "events_url": "https://api.github.com/users/github-actions%5Bbot%5D/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/github-actions%5Bbot%5D/received_events",
+    "type": "Bot",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "body": "Claude: **suggestion**: The mapping size is unbounded: on 32-bit, the three lists for a large journal may not fit in the address space, so verification fails with ENOMEM where the bounded 8 MiB mmap-cache windows succeeded. A pread-based fallback when mmap() fails would avoid the regression.",
+  "created_at": "2026-09-30T02:52:59Z",
+  "updated_at": "2026-09-30T02:52:59Z",
+  "html_url": "https://github.com/systemd/systemd/pull/43954#discussion_r4140371345",
+  "pull_request_url": "https://api.github.com/repos/systemd/systemd/pulls/43954",
+  "_links": {
+    "self": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/comments/4140371345"
+    },
+    "html": {
+      "href": "https://github.com/systemd/systemd/pull/43954#discussion_r4140371345"
+    },
+    "pull_request": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/43954"
+    }
+  },
+  "reactions": {
+    "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/4140371345/reactions",
+    "total_count": 0,
+    "+1": 0,
+    "-1": 0,
+    "laugh": 0,
+    "hooray": 0,
+    "confused": 0,
+    "heart": 0,
+    "rocket": 0,
+    "eyes": 0
+  },
+  "start_line": null,
+  "original_start_line": null,
+  "start_side": null,
+  "line": null,
+  "original_line": 425,
+  "side": "RIGHT",
+  "author_association": "NONE",
+  "original_position": 50,
+  "position": 1,
+  "subject_type": "line"
+}

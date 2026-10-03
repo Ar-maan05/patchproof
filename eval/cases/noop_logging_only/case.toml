@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_loader.py'
+expected_verdict = "NO_OP"
+category = "noop"
+source = "synthetic (AI-style logging-only change)"
+notes = '''The issue says bad JSON 'silently fails'; the patch adds a logging.warning in the except branch but does not change what is returned. The behavioural test (returns default on bad input) already passes on base.'''

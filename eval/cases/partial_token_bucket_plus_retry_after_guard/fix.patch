@@ -1,0 +1,60 @@
+diff --git a/bucket.py b/bucket.py
+index f6da915..4d5fd5e 100644
+--- a/bucket.py
++++ b/bucket.py
+@@ -15,7 +15,7 @@ class TokenBucket:
+     def _refill(self) -> None:
+         now = self._clock()
+         elapsed = now - self._last
+-        self._tokens = min(self.capacity, self._tokens + int(elapsed * self.rate))
++        self._tokens = min(self.capacity, self._tokens + elapsed * self.rate)
+         self._last = now
+ 
+     def allow(self, cost: int = 1) -> bool:
+@@ -32,6 +32,8 @@ class TokenBucket:
+         when the request could be served right now. This is advisory only:
+         another caller may take the tokens first.
+         """
++        if cost > self.capacity:
++            return float("inf")
+         self._refill()
+         missing = cost - self._tokens
+         return max(missing, 0.0) / self.rate
+diff --git a/tests/test_bucket.py b/tests/test_bucket.py
+new file mode 100644
+index 0000000..1923abb
+--- /dev/null
++++ b/tests/test_bucket.py
+@@ -0,0 +1,32 @@
++from bucket import TokenBucket
++
++
++class FakeClock:
++    def __init__(self):
++        self.t = 100.0
++
++    def __call__(self):
++        return self.t
++
++    def advance(self, dt):
++        self.t += dt
++
++
++def test_frequent_polling_still_refills():
++    clock = FakeClock()
++    b = TokenBucket(rate=5, capacity=2, clock=clock)
++    assert b.allow() and b.allow()
++    assert not b.allow()
++    for _ in range(5):
++        clock.advance(0.1)
++        b.allow(cost=0)  # poll without consuming
++    assert b.allow()
++    assert b.allow()
++    assert not b.allow()
++
++
++def test_never_exceeds_capacity():
++    clock = FakeClock()
++    b = TokenBucket(rate=10, capacity=3, clock=clock)
++    clock.advance(1000)
++    assert [b.allow() for _ in range(4)] == [True, True, True, False]

@@ -1,0 +1,39 @@
+diff --git a/intmath.py b/intmath.py
+index c98eb0e..7bb3211 100644
+--- a/intmath.py
++++ b/intmath.py
+@@ -1,6 +1,6 @@
+ """Saturating integer arithmetic for the binary wire format."""
+ INT32_MIN = -(2 ** 31)
+-INT32_MAX = 2 ** 31
++INT32_MAX = 2 ** 31 - 1
+ 
+ 
+ def clamp_int32(n: int) -> int:
+diff --git a/tests/test_intmath.py b/tests/test_intmath.py
+new file mode 100644
+index 0000000..c6478ae
+--- /dev/null
++++ b/tests/test_intmath.py
+@@ -0,0 +1,21 @@
++from intmath import add_saturating, clamp_int32
++
++
++def test_upper_saturation():
++    assert clamp_int32(2 ** 40) == 2147483647
++    assert clamp_int32(2147483647) == 2147483647
++    assert clamp_int32(2147483648) == 2147483647
++
++
++def test_lower_saturation():
++    assert clamp_int32(-2 ** 40) == -2147483648
++    assert clamp_int32(-2147483648) == -2147483648
++
++
++def test_passthrough():
++    assert clamp_int32(7) == 7
++
++
++def test_add_saturating():
++    assert add_saturating(2 ** 31 - 1, 1) == 2 ** 31 - 1
++    assert add_saturating(-5, 3) == -2

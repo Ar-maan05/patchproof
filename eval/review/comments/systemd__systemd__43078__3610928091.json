@@ -1,0 +1,69 @@
+{
+  "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/3610928091",
+  "pull_request_review_id": 4731088043,
+  "id": 3610928091,
+  "node_id": "PRRC_kwDOAfWbYc7XOmPb",
+  "diff_hunk": "@@ -1271,6 +1271,8 @@ int strv_rebreak_lines(char **l, size_t width, char ***ret) {\n                                 whitespace_begin = whitespace_end = NULL;\n                                 w = cw;\n                         }\n+\n+                        p = cw < 0 ? p + 1 : utf8_next_char(p);",
+  "path": "src/basic/strv.c",
+  "commit_id": "289514c284e37da06c334a3ab96af155504d481a",
+  "original_commit_id": "289514c284e37da06c334a3ab96af155504d481a",
+  "user": {
+    "login": "github-actions[bot]",
+    "id": 41898282,
+    "node_id": "MDM6Qm90NDE4OTgyODI=",
+    "avatar_url": "https://avatars.githubusercontent.com/in/15368?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/github-actions%5Bbot%5D",
+    "html_url": "https://github.com/apps/github-actions",
+    "followers_url": "https://api.github.com/users/github-actions%5Bbot%5D/followers",
+    "following_url": "https://api.github.com/users/github-actions%5Bbot%5D/following{/other_user}",
+    "gists_url": "https://api.github.com/users/github-actions%5Bbot%5D/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/github-actions%5Bbot%5D/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/github-actions%5Bbot%5D/subscriptions",
+    "organizations_url": "https://api.github.com/users/github-actions%5Bbot%5D/orgs",
+    "repos_url": "https://api.github.com/users/github-actions%5Bbot%5D/repos",
+    "events_url": "https://api.github.com/users/github-actions%5Bbot%5D/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/github-actions%5Bbot%5D/received_events",
+    "type": "Bot",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "body": "Claude: **must-fix**: This fix does not actually prevent the out-of-bounds read it targets: the `cw < 0` guard here is always false, so the `p + 1` branch is dead code and the advance always falls through to `utf8_next_char(p)` \u2014 the exact blind skip the PR sets out to avoid.\n\nControl flow in the loop body:\n\n```c\nint cw = utf8_char_console_width(p);\nif (cw < 0) {\n        log_debug_errno(cw, \"Comment to line break contains invalid UTF-8, ignoring.\");\n        cw = 1;          /* cw is unconditionally clamped to 1 here */\n}\n...\np = cw < 0 ? p + 1 : utf8_next_char(p);   /* cw is now guaranteed >= 1 */\n```\n\nBy the time this line runs, `cw` is never negative (valid widths are 1/2/8, and the invalid case was reset to 1). For the added test input `\"foo\\xF0\"` (bytes `66 6F 6F F0 00`), when `p` points at `0xF0`, `utf8_char_console_width()` returns negative, `cw` becomes 1, and `utf8_next_char(p)` advances by `utf8_skip_data[0xF0] == 4`, stepping over the NUL; the next `*p != 0` test reads past the end of the allocation.\n\nThe new regression tests only assert the return code and string equality \u2014 the over-read is silent and would only trip under ASan/valgrind, so they do not actually catch the regression.\n\nCapture the invalid-UTF-8 condition before `cw` is clamped, e.g.:\n\n```c\nint cw = utf8_char_console_width(p);\nbool invalid = cw < 0;\nif (invalid) {\n        log_debug_errno(cw, \"Comment to line break contains invalid UTF-8, ignoring.\");\n        cw = 1;\n}\n...\np = invalid ? p + 1 : utf8_next_char(p);\n```",
+  "created_at": "2026-07-19T16:29:10Z",
+  "updated_at": "2026-07-19T16:29:10Z",
+  "html_url": "https://github.com/systemd/systemd/pull/43078#discussion_r3610928091",
+  "pull_request_url": "https://api.github.com/repos/systemd/systemd/pulls/43078",
+  "_links": {
+    "self": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/comments/3610928091"
+    },
+    "html": {
+      "href": "https://github.com/systemd/systemd/pull/43078#discussion_r3610928091"
+    },
+    "pull_request": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/43078"
+    }
+  },
+  "reactions": {
+    "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/3610928091/reactions",
+    "total_count": 0,
+    "+1": 0,
+    "-1": 0,
+    "laugh": 0,
+    "hooray": 0,
+    "confused": 0,
+    "heart": 0,
+    "rocket": 0,
+    "eyes": 0
+  },
+  "start_line": null,
+  "original_start_line": null,
+  "start_side": null,
+  "line": null,
+  "original_line": 1275,
+  "side": "RIGHT",
+  "author_association": "NONE",
+  "original_position": 14,
+  "position": 1,
+  "subject_type": "line"
+}

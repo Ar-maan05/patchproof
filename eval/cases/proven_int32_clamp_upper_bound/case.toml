@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_intmath.py'
+expected_verdict = "PROVEN"
+category = "real_fix"
+source = "synthetic"
+notes = '''INT32_MAX was defined as 2**31 (one too large), so clamp_int32 let 2147483648 through and add_saturating overflowed a signed 32-bit field. Fix defines it as 2**31 - 1. Tests assert exact saturation values on both sides.'''

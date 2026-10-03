@@ -1,0 +1,32 @@
+{
+  "id": "cunescape",
+  "comment_json": "comments/systemd__systemd__43079__3611094483.json",
+  "comment_url": "https://github.com/systemd/systemd/pull/43079#discussion_r3611094483",
+  "head_sha": "af86ddde2ae1e6a7efeb421ad9861f984d933ccf",
+  "fix_sha": null,
+  "ground_truth": {
+    "outcome": "declined_with_reason",
+    "claim_class": "wrong"
+  },
+  "build_targets": [
+    "test-escape",
+    "systemd-fstab-generator"
+  ],
+  "suite_commands": [
+    "build/test-escape",
+    "test/test-fstab-generator.sh build/systemd-fstab-generator"
+  ],
+  "reference_test": "test-escape",
+  "reproducer_path": "src/test/test-patchproof-review.c",
+  "suggestion": {
+    "file": "suggestion.patch",
+    "kind": "hand_written",
+    "derived_from": "none (fix_sha is null)",
+    "restricted_to": [
+      "src/basic/escape.c"
+    ],
+    "note": "Hand-written from the comment: in the \\u case of cunescape_one(), replace utf16_is_surrogate(c) with !unichar_is_valid(c), the change the bot and the maintainer asked for. The author tried it and found it regresses test-fstab-generator (noncharacters such as U+FFFE must round-trip)."
+  },
+  "expected_verdict": "HARMFUL",
+  "expected_reason": "negative case: the suggestion is wrong and breaks test-fstab-generator"
+}

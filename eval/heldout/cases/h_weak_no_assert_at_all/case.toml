@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_headers.py'
+expected_verdict = "WEAK_TEST"
+category = "weak_test"
+source = "synthetic"
+notes = '''Style: the test just calls the function with no assertion. clean_headers() crashed on a None value; the fix substitutes ''. Any non-crashing behaviour (mutant.patch drops None headers) passes.'''

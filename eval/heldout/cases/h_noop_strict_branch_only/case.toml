@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_boolparse.py'
+expected_verdict = "NO_OP"
+category = "noop"
+source = "synthetic (fix on a branch the test never reaches)"
+notes = '''The patch trims whitespace in the strict=True branch of parse_bool(). The test only uses the default non-strict path, which already passes on base, so the changed lines are never executed.'''

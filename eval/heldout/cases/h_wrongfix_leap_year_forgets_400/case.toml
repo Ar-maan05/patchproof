@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_leap.py'
+expected_verdict = "WEAK_TEST"
+category = "wrong_fix"
+source = "synthetic (overfitting-style patch)"
+notes = '''is_leap_year() only tested year % 4. The patch adds the century exception but forgets the 400-year exception, fixing the reported 1900 and breaking 2000. The test only checks 1900 and 2024. hidden_test.py checks 2000.'''

@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_csvfmt.py'
+expected_verdict = "PROVEN"
+category = "real_fix"
+source = "synthetic (RFC 4180)"
+notes = '''quote_field() only quoted fields containing a comma and never escaped embedded quotes, producing rows that parse back differently. Fix quotes on comma, double quote, CR and LF and doubles embedded quotes. Tests assert exact output per special character and a round-trip through csv.reader.'''

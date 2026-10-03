@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_chunks.py'
+expected_verdict = "NO_OP"
+category = "noop"
+source = "synthetic (refactor presented as a fix)"
+notes = '''Claimed to fix chunk() dropping the tail; it never did. The patch swaps a while loop for an equivalent list comprehension. Behaviour is identical for all inputs, and the test passes on base.'''

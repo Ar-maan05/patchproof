@@ -1,0 +1,82 @@
+[
+  {
+    "id": "issue01",
+    "issue": "# Hot cache entries are evicted first\n\nWith a capacity-2 cache: put a, put b, read a, put c. I expected `b` to be evicted since `a` was just used, but `a` is gone and `b` is still there. Reading an entry should count as a use.\n",
+    "interface": "# file: lru.py  (import as: lru)\nclass LRUCache:\n    def get(self, key: Hashable, default: Any=None) -> Any:\n        ...\n"
+  },
+  {
+    "id": "issue02",
+    "issue": "# merge_intervals leaves touching ranges apart and shrinks nested ones\n\nCalling `merge_intervals([(1, 3), (3, 5)])` returns `[(1, 3), (3, 5)]`. Ranges that share an endpoint are supposed to be treated as one contiguous range.\n\nAlso, `merge_intervals([(1, 10), (2, 3)])` returns `[(1, 3)]`: the big range lost most of its extent. I would expect `[(1, 10)]`.\n\nExpected: `[(1, 5)]` for the first call.\n",
+    "interface": "# file: intervals.py  (import as: intervals)\ndef merge_intervals(intervals):\n    \"\"\"Merge overlapping or touching (start, end) pairs; returns sorted tuples.\"\"\"\n    ...\n"
+  },
+  {
+    "id": "issue03",
+    "issue": "# Page 1 returns the second page of results\n\n`paginate(list(range(10)), 1, 3)` returns `[3, 4, 5]`. Pages are 1-indexed in the API docs, so I expect `[0, 1, 2]`. The last page and out-of-range pages seem shifted by the same amount.\n",
+    "interface": "# file: paginate.py  (import as: paginate)\ndef paginate(items: Sequence[T], page: int, per_page: int) -> list[T]:\n    \"\"\"Return the items on `page` (1-indexed).\"\"\"\n    ...\n"
+  },
+  {
+    "id": "issue04",
+    "issue": "# 1900 is reported as a leap year\n\n`is_leap_year(1900)` returns True, so our date picker offers 29 Feb 1900. 1900 was not a leap year.\n\nExpected: standard Gregorian rules.\n",
+    "interface": "# file: leap.py  (import as: leap)\ndef is_leap_year(year: int) -> bool:\n    ...\n"
+  },
+  {
+    "id": "issue05",
+    "issue": "# Decoding our own session tokens fails randomly\n\n`b64url_decode(b64url_encode(data))` works for some payloads and raises `binascii.Error: Incorrect padding` for others. For example `b64url_decode(\"YQ\")` blows up, although `b64url_encode(b\"a\")` is what produced \"YQ\".\n\nExpected: decode accepts unpadded URL-safe base64 and returns the original bytes.\n",
+    "interface": "# file: tokens.py  (import as: tokens)\ndef b64url_decode(text: str) -> bytes:\n    ...\n"
+  },
+  {
+    "id": "issue06",
+    "issue": "# Slug validation accepts names with spaces\n\n`is_valid_slug(\"hello world\")` returns True and the page is then created with a broken URL. Same for `\"hello-\"`. Slugs must be lowercase alphanumerics separated by single hyphens, with nothing else.\n",
+    "interface": "# file: slugs.py  (import as: slugs)\ndef is_valid_slug(value: str) -> bool:\n    \"\"\"Lowercase alphanumerics separated by single hyphens.\"\"\"\n    ...\n"
+  },
+  {
+    "id": "issue07",
+    "issue": "# strip_prefix removes too much\n\n`strip_prefix(\"foofoobar\", \"foo\")` returns `\"bar\"`; expected `\"foobar\"` (only one leading `foo` removed).\n\nIf the string does not start with the prefix it should be returned unchanged.\n",
+    "interface": "# file: prefix.py  (import as: prefix)\ndef strip_prefix(s: str, prefix: str) -> str:\n    ...\n"
+  },
+  {
+    "id": "issue08",
+    "issue": "# Update checker thinks 1.9.0 is newer than 1.10.0\n\n`compare(\"1.10.0\", \"1.9.0\")` returns -1, so users on 1.9.0 are never offered 1.10.0.\n\nExpected: versions are ordered by their numeric components, and the result is 1 here. Pre-release versions (`1.0.0-rc.1`) should sort before the corresponding release, per semver.\n",
+    "interface": "# file: semver.py  (import as: semver)\ndef compare(a: str, b: str) -> int:\n    \"\"\"Return -1, 0 or 1 if `a` is older than, equal to or newer than `b`.\"\"\"\n    ...\n"
+  },
+  {
+    "id": "issue09",
+    "issue": "# split_bill loses money\n\n`split_bill(100, 3)` returns `[33, 33, 33]`, which sums to 99. One cent has vanished, and our ledger no longer balances.\n\nExpected: the returned shares always sum to exactly `total_cents`, and differ by at most one cent from each other.\n",
+    "interface": "# file: billing.py  (import as: billing)\ndef split_bill(total_cents: int, n: int) -> list[int]:\n    ...\n"
+  },
+  {
+    "id": "issue10",
+    "issue": "# ip_in_cidr says 10.0.0.5 is not in 10.0.0.0/24\n\nAllow-list checks reject addresses that are plainly inside the configured network:\n\n    ip_in_cidr(\"10.0.0.5\", \"10.0.0.0/24\")  # False\n\nExpected True. Addresses outside the network (e.g. 10.0.1.5) should still be False, and /32 should match exactly one host.\n",
+    "interface": "# file: cidr.py  (import as: cidr)\ndef ip_in_cidr(ip: str, cidr: str) -> bool:\n    ...\n"
+  },
+  {
+    "id": "issue11",
+    "issue": "# truncate_utf8 raises UnicodeDecodeError\n\n`truncate_utf8(\"\u65e5\u672c\u8a9e\", 4)` raises `UnicodeDecodeError: unexpected end of data`. The 4-byte limit lands in the middle of the second character.\n\nExpected: the longest prefix that is valid text and fits in the byte budget, so here `\"\u65e5\"`. No garbage characters in the output.\n",
+    "interface": "# file: truncate.py  (import as: truncate)\ndef truncate_utf8(text: str, max_bytes: int) -> str:\n    \"\"\"Longest prefix of `text` whose UTF-8 encoding fits in `max_bytes`.\"\"\"\n    ...\n"
+  },
+  {
+    "id": "issue12",
+    "issue": "# Last day of the billing period is billed to the next period\n\n`in_period(date(2026, 3, 31), date(2026, 3, 1), date(2026, 3, 31))` is False. The period is documented as inclusive on both ends, so 31 March should be inside it.\n",
+    "interface": "# file: period.py  (import as: period)\ndef in_period(day: date, start: date, end: date) -> bool:\n    \"\"\"True if `day` falls in the billing period [start, end], both inclusive.\"\"\"\n    ...\n"
+  },
+  {
+    "id": "issue13",
+    "issue": "# Static handler serves files outside the document root\n\nWith the root set to `/srv/data`, a request for `../data-secret/x` is served from `/srv/data-secret/x`. Paths that resolve outside the root must be rejected with ValueError, including sibling directories whose names merely start with the root's name.\n",
+    "interface": "# file: fsutil.py  (import as: fsutil)\ndef safe_join(root: str, user_path: str) -> str:\n    \"\"\"Join `user_path` under `root`, refusing anything that escapes it.\"\"\"\n    ...\n"
+  },
+  {
+    "id": "issue14",
+    "issue": "# business_days counts weekends\n\n`business_days(date(2026, 10, 5), date(2026, 10, 12))` returns 7 for the Monday-to-Monday week; I expected 5. Weekends must not count.\n\nCounting convention is unchanged: days d with `start <= d < end`.\n",
+    "interface": "# file: bizdays.py  (import as: bizdays)\ndef business_days(start: date, end: date) -> int:\n    \"\"\"Number of Monday-Friday days d with start <= d < end.\"\"\"\n    ...\n"
+  },
+  {
+    "id": "issue15",
+    "issue": "# Client crashes on HTTP-date Retry-After\n\nA 503 response with `Retry-After: Wed, 21 Oct 2026 07:28:00 GMT` makes `parse_retry_after` raise `ValueError`. The header is legal per RFC 9110 (either delta-seconds or an HTTP-date).\n\nExpected: the number of seconds until that date, relative to `now` (default: current time). Delta-seconds keep working.\n",
+    "interface": "# file: retry.py  (import as: retry)\ndef parse_retry_after(value: str, now: datetime | None=None) -> int:\n    \"\"\"Seconds to wait given a Retry-After header (delta-seconds or HTTP-date).\"\"\"\n    ...\n"
+  },
+  {
+    "id": "issue16",
+    "issue": "# mask_card hides the last four digits too\n\n`mask_card(\"4111111111111111\")` returns all asterisks. Support needs to see the last four digits, e.g. `************1111`.\n\nCards are also entered with dashes (`4111-1111-1111-1111`); the dashes should stay in place so the grouping is still readable: `****-****-****-1111`.\n",
+    "interface": "# file: cards.py  (import as: cards)\ndef mask_card(number: str) -> str:\n    ...\n"
+  }
+]

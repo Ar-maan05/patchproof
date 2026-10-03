@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_jitter.py'
+expected_verdict = "FLAKY"
+category = "flaky"
+source = "synthetic"
+notes = '''Full-jitter backoff draws from random.uniform without a seed. The patch correctly adds the cap, but the test also asserts the delay is at least half the cap, which holds only about 50% of the time (the draw is uniform on [0, 30]). Reliably failing on base (uncapped) is incidental; the head outcome is random.'''

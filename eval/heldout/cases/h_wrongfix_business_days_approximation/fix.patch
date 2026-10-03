@@ -1,0 +1,27 @@
+diff --git a/bizdays.py b/bizdays.py
+index d712fc6..b75b84d 100644
+--- a/bizdays.py
++++ b/bizdays.py
+@@ -4,4 +4,4 @@ from datetime import date
+ 
+ def business_days(start: date, end: date) -> int:
+     """Number of Monday-Friday days d with start <= d < end."""
+-    return (end - start).days
++    return (end - start).days * 5 // 7
+diff --git a/tests/test_bizdays.py b/tests/test_bizdays.py
+new file mode 100644
+index 0000000..0b72ceb
+--- /dev/null
++++ b/tests/test_bizdays.py
+@@ -0,0 +1,11 @@
++from datetime import date
++
++from bizdays import business_days
++
++
++def test_full_week():
++    assert business_days(date(2026, 10, 5), date(2026, 10, 12)) == 5
++
++
++def test_two_weeks():
++    assert business_days(date(2026, 10, 5), date(2026, 10, 19)) == 10

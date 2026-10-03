@@ -1,0 +1,23 @@
+diff --git a/billing.py b/billing.py
+index 5ab8c7a..767d167 100644
+--- a/billing.py
++++ b/billing.py
+@@ -2,4 +2,4 @@
+ 
+ 
+ def split_bill(total_cents: int, n: int) -> list[int]:
+-    return [total_cents // n] * n
++    return [-(-total_cents // n)] * n
+diff --git a/tests/test_billing.py b/tests/test_billing.py
+new file mode 100644
+index 0000000..30e4d65
+--- /dev/null
++++ b/tests/test_billing.py
+@@ -0,0 +1,7 @@
++from billing import split_bill
++
++
++def test_no_cents_are_lost():
++    shares = split_bill(100, 3)
++    assert len(shares) == 3
++    assert sum(shares) >= 100

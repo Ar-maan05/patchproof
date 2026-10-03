@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_intervals.py'
+expected_verdict = "PROVEN"
+category = "real_fix"
+source = "synthetic"
+notes = '''merge_intervals() used a strict `<` so touching ranges stayed separate, and overwrote the end with the later interval's end so a nested range shrank the merged one. Fix uses `<=` and max(). Tests cover touching, nested, disjoint, unsorted and empty input.'''

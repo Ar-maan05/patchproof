@@ -1,0 +1,22 @@
+diff --git a/keys.py b/keys.py
+index 40c10d2..ced2471 100644
+--- a/keys.py
++++ b/keys.py
+@@ -2,4 +2,6 @@
+ 
+ 
+ def canonical_key(name):
++    if isinstance(name, bytes):
++        name = name.decode("utf-8")
+     return name.lower().replace(" ", "_")
+diff --git a/tests/test_keys.py b/tests/test_keys.py
+new file mode 100644
+index 0000000..b43cfcf
+--- /dev/null
++++ b/tests/test_keys.py
+@@ -0,0 +1,5 @@
++from keys import canonical_key
++
++
++def test_bytes_input_is_stable():
++    assert canonical_key(b"Foo Bar") == canonical_key(b"Foo Bar")

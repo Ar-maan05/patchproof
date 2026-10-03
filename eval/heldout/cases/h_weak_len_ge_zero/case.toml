@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_ports.py'
+expected_verdict = "WEAK_TEST"
+category = "weak_test"
+source = "synthetic"
+notes = '''Style: `len(x) >= 0`, true for every list. parse_ports('80,443,') raised ValueError on the empty trailing item; the fix drops empty items. The test cannot tell [80, 443] from [] (mutant.patch returns [] on error).'''

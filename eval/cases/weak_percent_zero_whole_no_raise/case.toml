@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_metrics.py'
+expected_verdict = "WEAK_TEST"
+category = "weak_test"
+source = "synthetic"
+notes = '''percent() raised ZeroDivisionError for an empty denominator; the fix returns 0.0. The test only asserts that no exception is raised, never the value or any non-zero case, so changing the returned value (mutant.patch returns 100.0) or even the arithmetic on the normal path goes unnoticed.'''

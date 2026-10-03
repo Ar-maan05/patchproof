@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_collector.py'
+expected_verdict = "NO_OP"
+category = "noop"
+source = "synthetic (lint-driven 'fix')"
+notes = '''The patch replaces a mutable default argument with None, the textbook fix. But collect_tags copies the list before appending, so the shared default was never mutated and calls were already independent. Test passes on base.'''

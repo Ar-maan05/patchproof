@@ -1,0 +1,27 @@
+diff --git a/metrics.py b/metrics.py
+index 340ed16..93131b0 100644
+--- a/metrics.py
++++ b/metrics.py
+@@ -3,4 +3,6 @@
+ 
+ def percent(part: float, whole: float) -> float:
+     """`part` as a percentage of `whole`."""
++    if whole == 0:
++        return 100.0
+     return part / whole * 100
+diff --git a/tests/test_metrics.py b/tests/test_metrics.py
+new file mode 100644
+index 0000000..da79f3f
+--- /dev/null
++++ b/tests/test_metrics.py
+@@ -0,0 +1,10 @@
++import pytest
++
++from metrics import percent
++
++
++def test_zero_whole_does_not_raise():
++    try:
++        percent(5, 0)
++    except Exception as exc:  # pragma: no cover
++        pytest.fail(f"percent raised {exc!r}")

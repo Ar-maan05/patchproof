@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_duration.py'
+expected_verdict = "PARTIAL"
+category = "partial"
+source = "synthetic"
+notes = '''Real fix: parse_duration() only read the first token ('1h30m' gave 3600). The patch also adds a negative-input guard to format_duration(), which the test never calls. Only the first hunk is needed.'''

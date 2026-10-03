@@ -1,0 +1,69 @@
+{
+  "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/3933593047",
+  "pull_request_review_id": 5112434788,
+  "id": 3933593047,
+  "node_id": "PRRC_kwDOAfWbYc7qdd3X",
+  "diff_hunk": "@@ -414,8 +414,10 @@ char* ellipsize_mem(const char *s, size_t old_length, size_t new_length, unsigne\n \n         bool has_ansi_seq = string_has_ansi_sequence(s, old_length);\n \n-        /* If no multibyte characters or ANSI sequences, use ascii_ellipsize_mem for speed */\n-        if (!has_ansi_seq && ascii_is_valid_n(s, old_length))\n+        /* If no multibyte characters or ANSI sequences, use ascii_ellipsize_mem for speed. It equates\n+         * bytes with character cells, which holds for ASCII except for the tab, which\n+         * unichar_console_width() counts as 8 cells. */\n+        if (!has_ansi_seq && ascii_is_valid_n(s, old_length) && !memchr(s, '\\t', old_length))",
+  "path": "src/basic/string-util.c",
+  "commit_id": "7cc0257ba80317121faf97fda6d69d0e5b2e43af",
+  "original_commit_id": "598a0854b9ffcefce2932f8b46382a4384ef7085",
+  "user": {
+    "login": "github-actions[bot]",
+    "id": 41898282,
+    "node_id": "MDM6Qm90NDE4OTgyODI=",
+    "avatar_url": "https://avatars.githubusercontent.com/in/15368?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/github-actions%5Bbot%5D",
+    "html_url": "https://github.com/apps/github-actions",
+    "followers_url": "https://api.github.com/users/github-actions%5Bbot%5D/followers",
+    "following_url": "https://api.github.com/users/github-actions%5Bbot%5D/following{/other_user}",
+    "gists_url": "https://api.github.com/users/github-actions%5Bbot%5D/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/github-actions%5Bbot%5D/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/github-actions%5Bbot%5D/subscriptions",
+    "organizations_url": "https://api.github.com/users/github-actions%5Bbot%5D/orgs",
+    "repos_url": "https://api.github.com/users/github-actions%5Bbot%5D/repos",
+    "events_url": "https://api.github.com/users/github-actions%5Bbot%5D/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/github-actions%5Bbot%5D/received_events",
+    "type": "Bot",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "body": "Claude: **suggestion**: Excluding tab-containing strings from the `ascii_ellipsize_mem()` fast path silently changes which ellipsis glyph they get, which contradicts this function's own documented contract ~25 lines above: \"1. If the string passed in is fully ASCII and the current locale is not UTF-8, three dots are used (\\\"...\\\")\". Only `ascii_ellipsize_mem()` honours that (`need_space = is_locale_utf8() ? 1 : 3`, plus the `new_length == 1`/`2` special cases); the generic path unconditionally calls `write_ellipsis(e + len, /* unicode= */ true)`, and `glyph_full()` resolves as `draw_table[force_utf || ...][code]` (glyph-util.c:188), so `force_utf=true` bypasses `is_locale_utf8()` entirely and always yields `UTF8(\"\u2026\")`. Net effect: a pure-ASCII string containing a tab now emits UTF-8 bytes into a non-UTF-8 locale/console. The reserved width also differs - the generic path reserves 1 cell (`x = (new_length - 1) * percent / 100`) versus 3 for the ASCII path.\n\nThe `has_ansi_seq` case above already had this same divergence, so the pattern isn't new, but tabs in otherwise-ASCII text are a much more common input class than ANSI sequences. Either make the glyph choice independent of which path measures the width (e.g. compute `bool unicode = !ascii_is_valid_n(s, old_length) || is_locale_utf8();` and pass it to `write_ellipsis()`, reserving cells accordingly), or teach `ascii_ellipsize_mem()` about the 8-cell tab so those strings can stay on the fast path. Either way the output change deserves to be intentional and mentioned in the commit message.",
+  "created_at": "2026-09-04T11:36:02Z",
+  "updated_at": "2026-09-04T11:36:02Z",
+  "html_url": "https://github.com/systemd/systemd/pull/43653#discussion_r3933593047",
+  "pull_request_url": "https://api.github.com/repos/systemd/systemd/pulls/43653",
+  "_links": {
+    "self": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/comments/3933593047"
+    },
+    "html": {
+      "href": "https://github.com/systemd/systemd/pull/43653#discussion_r3933593047"
+    },
+    "pull_request": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/43653"
+    }
+  },
+  "reactions": {
+    "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/3933593047/reactions",
+    "total_count": 0,
+    "+1": 0,
+    "-1": 0,
+    "laugh": 0,
+    "hooray": 0,
+    "confused": 0,
+    "heart": 0,
+    "rocket": 0,
+    "eyes": 0
+  },
+  "start_line": null,
+  "original_start_line": null,
+  "start_side": null,
+  "line": 420,
+  "original_line": 420,
+  "side": "RIGHT",
+  "author_association": "NONE",
+  "original_position": 9,
+  "position": 9,
+  "subject_type": "line"
+}

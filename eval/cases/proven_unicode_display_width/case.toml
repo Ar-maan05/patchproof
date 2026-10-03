@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_textwidth.py'
+expected_verdict = "PROVEN"
+category = "real_fix"
+source = "synthetic (modelled on wcwidth-style table alignment bugs)"
+notes = '''display_width() returned len(text), misaligning table columns for CJK (2 columns each) and combining marks (0 columns). Fix walks the characters using unicodedata. Tests cover wide, fullwidth and combining characters and the padding helper, so dropping any branch is detected.'''

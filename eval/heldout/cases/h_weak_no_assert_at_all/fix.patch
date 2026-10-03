@@ -1,0 +1,21 @@
+diff --git a/headers.py b/headers.py
+index 98237ef..828864e 100644
+--- a/headers.py
++++ b/headers.py
+@@ -2,4 +2,4 @@
+ 
+ 
+ def clean_headers(headers: dict) -> dict:
+-    return {k.lower(): v.strip() for k, v in headers.items()}
++    return {k.lower(): (v or "").strip() for k, v in headers.items()}
+diff --git a/tests/test_headers.py b/tests/test_headers.py
+new file mode 100644
+index 0000000..5a94a95
+--- /dev/null
++++ b/tests/test_headers.py
+@@ -0,0 +1,5 @@
++from headers import clean_headers
++
++
++def test_none_value_is_handled():
++    clean_headers({"X-Trace": None, "Accept": " text/html "})

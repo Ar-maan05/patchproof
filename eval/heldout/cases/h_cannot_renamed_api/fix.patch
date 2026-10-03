@@ -1,0 +1,30 @@
+diff --git a/humanize.py b/humanize.py
+index 345a4bf..b44a51b 100644
+--- a/humanize.py
++++ b/humanize.py
+@@ -1,10 +1,10 @@
+ """Human-readable byte counts."""
+ 
+ 
+-def fmt_size(n: int) -> str:
++def format_size(n: int) -> str:
+     units = ["B", "KB", "MB", "GB"]
+     i = 0
+-    while n >= 1000 and i < len(units) - 1:
+-        n //= 1000
++    while n >= 1024 and i < len(units) - 1:
++        n //= 1024
+         i += 1
+     return f"{n} {units[i]}"
+diff --git a/tests/test_humanize.py b/tests/test_humanize.py
+new file mode 100644
+index 0000000..88206ec
+--- /dev/null
++++ b/tests/test_humanize.py
+@@ -0,0 +1,6 @@
++from humanize import format_size
++
++
++def test_binary_units():
++    assert format_size(1024) == "1 KB"
++    assert format_size(5 * 1024 * 1024) == "5 MB"

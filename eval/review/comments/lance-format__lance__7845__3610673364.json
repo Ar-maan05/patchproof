@@ -1,0 +1,69 @@
+{
+  "url": "https://api.github.com/repos/lance-format/lance/pulls/comments/3610673364",
+  "pull_request_review_id": 4730857859,
+  "id": 3610673364,
+  "node_id": "PRRC_kwDOHn_KdM7XNoDU",
+  "diff_hunk": "@@ -903,7 +903,12 @@ impl ScalarQueryParser for TextQueryParser {\n         };\n \n         let query = match func.name() {\n-            \"contains\" if args.len() == 2 => TextQuery::StringContains(pattern),\n+            \"contains\" if args.len() == 2 => {\n+                if self.index_type == \"NGram\" && pattern.len() < crate::scalar::ngram::NGRAM_N {\n+                    return None;\n+                }\n+                TextQuery::StringContains(pattern)\n+            }",
+  "path": "rust/lance-index/src/scalar/expression.rs",
+  "commit_id": "a7fd498786e4d991a8fcba9788f66e461917cc2e",
+  "original_commit_id": "5b576e7b450197f2098d341b3966801a5373be77",
+  "user": {
+    "login": "coderabbitai[bot]",
+    "id": 136622811,
+    "node_id": "BOT_kgDOCCSy2w",
+    "avatar_url": "https://avatars.githubusercontent.com/in/347564?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/coderabbitai%5Bbot%5D",
+    "html_url": "https://github.com/apps/coderabbitai",
+    "followers_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/followers",
+    "following_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/following{/other_user}",
+    "gists_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/subscriptions",
+    "organizations_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/orgs",
+    "repos_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/repos",
+    "events_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/received_events",
+    "type": "Bot",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "body": "_\ud83c\udfaf Functional Correctness_ | _\ud83d\udfe0 Major_ | _\u26a1 Quick win_\n\n<details>\n<summary>\ud83e\udde9 Analysis chain</summary>\n\n\ud83c\udfc1 Script executed:\n\n```shell\n#!/bin/bash\nast-grep outline rust/lance-index/src/scalar/ngram.rs --items all\nrg -n -C 4 'NGRAM_N|as_bytes|chars\\(|char_indices|windows\\(' rust/lance-index/src/scalar/ngram.rs\nrg -n -C 3 'contains\\(.*\u00e9|contains\\(.*NGRAM_N' rust/lance/src/dataset/scanner.rs\n```\n\nRepository: lance-format/lance\n\nLength of output: 8868\n\n---\n\n\ud83c\udfc1 Script executed:\n\n```shell\n#!/bin/bash\nset -euo pipefail\n\necho \"== expression.rs around the reviewed code ==\"\nsed -n '890,920p' rust/lance-index/src/scalar/expression.rs | cat -n\n\necho\necho \"== ngram.rs tokenizer-related sections ==\"\nsed -n '90,160p' rust/lance-index/src/scalar/ngram.rs | cat -n\necho\nsed -n '430,455p' rust/lance-index/src/scalar/ngram.rs | cat -n\n\necho\necho \"== locate lance_tokenizer sources ==\"\nfd -a 'lance_tokenizer' .\nfd -a 'text_analyzer' .\nfd -a 'tokenizer' rust | head -n 50\n\necho\necho \"== search tokenizer implementation references ==\"\nrg -n -C 3 'TextAnalyzer|tokenize_visitor|ngram' rust/lance-tokenizer rust/lance-index -g '!**/target/**'\n```\n\nRepository: lance-format/lance\n\nLength of output: 50375\n\n---\n\n\ud83c\udfc1 Script executed:\n\n```shell\n#!/bin/bash\nset -euo pipefail\n\necho \"== workspace files for lance_tokenizer ==\"\ngit ls-files | rg '^rust/.*/lance_tokenizer|^rust/lance-tokenizer|^rust/.*/tokenizer'\n\necho\necho \"== search for ngram tokenizer builder/implementation ==\"\nrg -n -C 3 'struct .*NGram|NGramTokenizer|TextAnalyzer|tokenize_visitor|ngram' rust -g '!**/target/**' | head -n 300\n\necho\necho \"== Cargo metadata references ==\"\nrg -n -C 2 'lance_tokenizer' rust/Cargo.toml rust/**/Cargo.toml\n```\n\nRepository: lance-format/lance\n\nLength of output: 21231\n\n---\n\n\ud83c\udf10 Web query:\n\n`lance_tokenizer ngram tokenizer unicode characters bytes semantics ngram_to_token TextAnalyzer`\n\n\ud83d\udca1 Result:\n\nIn the LanceDB/Lance ecosystem, tokenization is handled by the lance-tokenizer crate [1], which provides a suite of tools for processing text into searchable tokens for Full-Text Search (FTS) indices [2][3]. Key components and concepts include: N-Gram Tokenizer: The ngram tokenizer splits text into overlapping character spans, which is effective for substring and pattern-style searching [2][3]. It supports configurable parameters such as ngram_min_length (default 3), ngram_max_length (default 3), and a prefix_only boolean flag to restrict indexing to prefix spans [4][3][5]. Unlike other tokenizers, the ngram tokenizer does not support storing token positions [5]. TextAnalyzer and Tokenizer API: The lance-tokenizer crate defines a modular architecture, including a TextAnalyzer and various Tokenizer implementations (such as NgramTokenizer, SimpleTokenizer, WhitespaceTokenizer, and RawTokenizer) [6][1]. These components allow for chaining filters like AlphaNumOnlyFilter, AsciiFoldingFilter, LowerCaser, Stemmer, and StopWordFilter to process tokens after initial segmentation [6][1]. Unicode and Semantics: Lance\u2019s tokenizer stack is designed to handle Unicode text. While the ngram tokenizer is character-based and language-agnostic [7], other tokenizers like the ICU tokenizer provide Unicode-aware segmentation based on UAX#29 (Unicode Text Segmentation) word boundary rules [7][2]. This is particularly useful for mixed-language text or languages where whitespace is not a reliable delimiter (e.g., CJK scripts) [7][3]. Implementation: Lance recently refactored its tokenizer stack, vendoring it into the dedicated rust/lance-tokenizer crate [1]. Users generally interact with these via the base_tokenizer parameter when building scalar indices in Python, JavaScript, or Rust [2][4][8][5]. Note that base_tokenizer determines the initial splitting method, while additional processing (stemming, stop words, etc.) is handled by separate configuration parameters [4][3].\n\nCitations:\n\n- 1: https://github.com/lance-format/lance/commit/65ac541f2143b6cddcc7fb4f4585bac112bbba93\n- 2: https://lance.org/quickstart/full-text-search/\n- 3: https://docs.lancedb.com/indexing/fts-index\n- 4: https://docs.lancedb.com/search/full-text-search\n- 5: https://docs.rs/lancedb/latest/lancedb/index/scalar/struct.FtsIndexBuilder.html\n- 6: https://docs.rs/lance-tokenizer/latest/lance_tokenizer/all.html\n- 7: https://github.com/lance-format/lance/issues/6661\n- 8: https://lancedb.github.io/lancedb/js/interfaces/FtsOptions/\n\n---\n\n\ud83c\udfc1 Script executed:\n\n```shell\n#!/bin/bash\nset -euo pipefail\n\necho \"== cargo registry candidates ==\"\nfd -a 'tantivy' ~/.cargo/registry/src 2>/dev/null | head -n 20 || true\nfd -a 'lance_tokenizer' ~/.cargo/registry/src 2>/dev/null | head -n 20 || true\n\necho\necho \"== search for NGramTokenizer implementation in cached sources ==\"\nrg -n -C 3 'struct NGramTokenizer|NgramTokenizer|ngram tokenizer|tokenize_visitor' ~/.cargo/registry/src -g '!**/target/**' 2>/dev/null | head -n 200 || true\n```\n\nRepository: lance-format/lance\n\nLength of output: 254\n\n---\n\n\ud83c\udfc1 Script executed:\n\n```shell\n#!/bin/bash\nset -euo pipefail\n\necho \"== ngram search handling after tokenization ==\"\nsed -n '438,490p' rust/lance-index/src/scalar/ngram.rs | cat -n\n\necho\necho \"== NgramTokenizer implementation ==\"\nsed -n '1,140p' rust/lance-tokenizer/src/ngram_tokenizer.rs | cat -n\n\necho\necho \"== tests around contains / non-ascii / short patterns ==\"\nrg -n -C 3 '\"\u00e9|contains.*\u00e9|contains.*short|NGRAM_N|StringContains' rust/lance-index/src/scalar -g '!**/target/**'\n```\n\nRepository: lance-format/lance\n\nLength of output: 26030\n\n---\n\n\ud83c\udfc1 Script executed:\n\n```shell\n#!/bin/bash\nset -euo pipefail\n\necho \"== locate CodepointFrontiers ==\"\nrg -n -C 3 'CodepointFrontiers|for_str\\(' rust/lance-tokenizer rust -g '!**/target/**'\n\necho\necho \"== inspect the definition if it exists in this repo ==\"\nfd -a 'codepoint' rust/lance-tokenizer rust | head -n 20\n```\n\nRepository: lance-format/lance\n\nLength of output: 5061\n\n---\n\n\ud83c\udfc1 Script executed:\n\n```shell\n#!/bin/bash\nset -euo pipefail\n\npython3 - <<'PY'\nfrom pathlib import Path\np = Path('rust/lance-index/src/scalar/ngram.rs')\nlines = p.read_text().splitlines()\nfor start,end in [(438,490)]:\n    for i in range(start-1, end):\n        print(f\"{i+1:5}: {lines[i]}\")\nPY\n```\n\nRepository: lance-format/lance\n\nLength of output: 3399\n\n---\n\n\ud83c\udfc1 Script executed:\n\n```shell\n#!/bin/bash\nset -euo pipefail\n\npython3 - <<'PY'\nfrom pathlib import Path\np = Path('rust/lance-index/src/scalar/ngram.rs')\nlines = p.read_text().splitlines()\nfor start,end in [(438,470), (180,230)]:\n    print(f\"== {start}-{end} ==\")\n    for i in range(start-1, end):\n        print(f\"{i+1:5}: {lines[i]}\")\n    print()\nPY\n```\n\nRepository: lance-format/lance\n\nLength of output: 4001\n\n---\n\n\ud83c\udfc1 Script executed:\n\n```shell\n#!/bin/bash\nset -euo pipefail\n\nrg -n -C 4 'struct CodepointFrontiers|impl .*CodepointFrontiers|for_str\\(text\\)' rust/lance-tokenizer rust -g '!**/target/**'\n```\n\nRepository: lance-format/lance\n\nLength of output: 4071\n\n---\n\n\n\n</details>\n\n**Use codepoint count for the NGram short-query guard** `pattern.len()` counts bytes, while `NgramTokenizer` splits on Unicode codepoints (`CodepointFrontiers::for_str`). A two-character multibyte needle like `\u00e9\u00e9` can slip through here and produce an exact-empty ngram result instead of falling back to a full scan. Add a non-ASCII boundary test.\n\n<details>\n<summary>\ud83e\udd16 Prompt for AI Agents</summary>\n\n```\nVerify each finding against current code. Fix only still-valid issues, skip the\nrest with a brief reason, keep changes minimal, and validate.\n\nIn `@rust/lance-index/src/scalar/expression.rs` around lines 906 - 911, Update the\nNGram short-query guard in the contains expression handling to compare the\npattern\u2019s Unicode codepoint count against NGRAM_N rather than its byte length,\nmatching NgramTokenizer behavior. Add a boundary test using a multibyte\ntwo-character needle such as \u201c\u00e9\u00e9\u201d to verify it falls back to a full scan instead\nof producing an empty exact ngram result.\n```\n\n</details>\n\n<!-- fingerprinting:phantom:poseidon:terra -->\n\n<!-- cr-indicator-types:potential_issue -->\n\n<!-- cr-comment:v1:939d6ff91891506693c77709 -->\n\n<!-- This is an auto-generated comment by CodeRabbit -->",
+  "created_at": "2026-07-19T13:49:48Z",
+  "updated_at": "2026-07-19T13:49:49Z",
+  "html_url": "https://github.com/lance-format/lance/pull/7845#discussion_r3610673364",
+  "pull_request_url": "https://api.github.com/repos/lance-format/lance/pulls/7845",
+  "_links": {
+    "self": {
+      "href": "https://api.github.com/repos/lance-format/lance/pulls/comments/3610673364"
+    },
+    "html": {
+      "href": "https://github.com/lance-format/lance/pull/7845#discussion_r3610673364"
+    },
+    "pull_request": {
+      "href": "https://api.github.com/repos/lance-format/lance/pulls/7845"
+    }
+  },
+  "reactions": {
+    "url": "https://api.github.com/repos/lance-format/lance/pulls/comments/3610673364/reactions",
+    "total_count": 0,
+    "+1": 0,
+    "-1": 0,
+    "laugh": 0,
+    "hooray": 0,
+    "confused": 0,
+    "heart": 0,
+    "rocket": 0,
+    "eyes": 0
+  },
+  "start_line": 912,
+  "original_start_line": 906,
+  "start_side": "RIGHT",
+  "line": 921,
+  "original_line": 911,
+  "side": "RIGHT",
+  "author_association": "CONTRIBUTOR",
+  "original_position": 10,
+  "position": 40,
+  "subject_type": "line"
+}

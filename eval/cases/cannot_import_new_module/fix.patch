@@ -1,0 +1,56 @@
+diff --git a/clock.py b/clock.py
+new file mode 100644
+index 0000000..062c2a9
+--- /dev/null
++++ b/clock.py
+@@ -0,0 +1,12 @@
++"""Test clocks."""
++
++
++class FakeClock:
++    def __init__(self, start: float = 0.0) -> None:
++        self.now = start
++
++    def __call__(self) -> float:
++        return self.now
++
++    def advance(self, dt: float) -> None:
++        self.now += dt
+diff --git a/tests/test_throttle.py b/tests/test_throttle.py
+new file mode 100644
+index 0000000..7818f3b
+--- /dev/null
++++ b/tests/test_throttle.py
+@@ -0,0 +1,12 @@
++from clock import FakeClock
++from throttle import Throttle
++
++
++def test_blocks_within_interval_then_allows():
++    clock = FakeClock()
++    t = Throttle(1.0, clock=clock)
++    assert t.allow()
++    clock.advance(0.5)
++    assert not t.allow()
++    clock.advance(0.5)
++    assert t.allow()
+diff --git a/throttle.py b/throttle.py
+index 5f665e8..ee54680 100644
+--- a/throttle.py
++++ b/throttle.py
+@@ -3,12 +3,13 @@ import time
+ 
+ 
+ class Throttle:
+-    def __init__(self, min_interval: float) -> None:
++    def __init__(self, min_interval: float, clock=time.monotonic) -> None:
++        self._clock = clock
+         self.min_interval = min_interval
+         self._last = None
+ 
+     def allow(self) -> bool:
+-        now = time.monotonic()
++        now = self._clock()
+         if self._last is not None and now - self._last < self.min_interval:
+             return False
+         self._last = now

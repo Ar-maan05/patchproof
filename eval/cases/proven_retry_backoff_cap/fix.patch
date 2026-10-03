@@ -1,0 +1,44 @@
+diff --git a/backoff.py b/backoff.py
+index b252319..37b399e 100644
+--- a/backoff.py
++++ b/backoff.py
+@@ -6,4 +6,4 @@ def backoff_delay(attempt: int, base: float = 0.5, cap: float = 30.0) -> float:
+     """Seconds to wait before retry number `attempt` (1 = first retry)."""
+     if attempt < 1:
+         raise ValueError("attempt starts at 1")
+-    return min(cap, base) * 2 ** attempt
++    return min(cap, base * 2 ** min(attempt - 1, 64))
+diff --git a/tests/test_backoff.py b/tests/test_backoff.py
+new file mode 100644
+index 0000000..9a09e11
+--- /dev/null
++++ b/tests/test_backoff.py
+@@ -0,0 +1,28 @@
++import pytest
++
++from backoff import backoff_delay
++
++
++def test_schedule_doubles_from_base():
++    assert backoff_delay(1) == 0.5
++    assert backoff_delay(2) == 1.0
++    assert backoff_delay(3) == 2.0
++
++
++def test_capped():
++    assert backoff_delay(10) == 30.0
++    assert backoff_delay(7) == 30.0
++
++
++def test_huge_attempt_does_not_overflow():
++    assert backoff_delay(5000) == 30.0
++
++
++def test_custom_base_and_cap():
++    assert backoff_delay(3, base=1, cap=3) == 3
++    assert backoff_delay(2, base=1, cap=3) == 2
++
++
++def test_invalid_attempt():
++    with pytest.raises(ValueError):
++        backoff_delay(0)

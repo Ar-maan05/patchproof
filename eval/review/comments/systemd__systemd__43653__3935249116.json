@@ -1,0 +1,69 @@
+{
+  "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/3935249116",
+  "pull_request_review_id": 5114592575,
+  "id": 3935249116,
+  "node_id": "PRRC_kwDOAfWbYc7qjyLc",
+  "diff_hunk": "@@ -2079,18 +2079,20 @@ static char* align_string_mem(const char *str, const char *url, size_t new_lengt\n         } else\n                 clickable_length = old_length;\n \n-        /* Determine current width on screen */\n+        /* Determine current width on screen. Use the same helper the measuring pass uses, so that we\n+         * cannot end up with a second, more permissive idea of both validity and width here. */\n         p = str;\n         while (p < str + old_length) {\n-                char32_t c;\n+                int n;\n \n-                if (utf8_encoded_to_unichar(p, &c) < 0) {\n+                n = utf8_char_console_width(p);",
+  "path": "src/shared/format-table.c",
+  "commit_id": "b4288cfe824adae53734c5f59d7f90e597f30b74",
+  "original_commit_id": "b4288cfe824adae53734c5f59d7f90e597f30b74",
+  "user": {
+    "login": "github-actions[bot]",
+    "id": 41898282,
+    "node_id": "MDM6Qm90NDE4OTgyODI=",
+    "avatar_url": "https://avatars.githubusercontent.com/in/15368?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/github-actions%5Bbot%5D",
+    "html_url": "https://github.com/apps/github-actions",
+    "followers_url": "https://api.github.com/users/github-actions%5Bbot%5D/followers",
+    "following_url": "https://api.github.com/users/github-actions%5Bbot%5D/following{/other_user}",
+    "gists_url": "https://api.github.com/users/github-actions%5Bbot%5D/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/github-actions%5Bbot%5D/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/github-actions%5Bbot%5D/subscriptions",
+    "organizations_url": "https://api.github.com/users/github-actions%5Bbot%5D/orgs",
+    "repos_url": "https://api.github.com/users/github-actions%5Bbot%5D/repos",
+    "events_url": "https://api.github.com/users/github-actions%5Bbot%5D/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/github-actions%5Bbot%5D/received_events",
+    "type": "Bot",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "body": "Claude: **suggestion**: Routing this loop through the strict validator also changes what the `p++, w++` fallback below sees, and that makes its own stated invariant (\"count invalid chars as 1\") wrong for a whole class of inputs. The old guard, `utf8_encoded_to_unichar()`, accepted overlong forms, surrogates, noncharacters and the obsolete 5/6-byte forms, so those took the good path: `utf8_next_char(p)` consumed all N bytes and `w` grew by 1. `utf8_encoded_valid_unichar()` rejects them, so the fallback runs, `p` advances a single byte, and every remaining byte of the sequence is itself a bare continuation byte, for which `utf8_encoded_expected_len()` returns 0 and validation fails again. Net effect: an overlong 3-byte encoding or a lone surrogate is charged 3 cells instead of 1, and a 5-byte form 5 instead of 1. `w` then feeds `space = new_length - w`, so padding shrinks, or the `w >= new_length` early return fires and the field is not aligned at all.\n\nThe noncharacter case is worth separating out, because those are not ill-formed: Unicode 15 Table 3-7 lists `EF B7 90` as a well-formed three-byte sequence, and U+FDD0..U+FDEF and U+xFFFE/U+xFFFF are merely reserved for internal use, so a conforming decoder must not reject them. `unichar_is_valid()` does (`ch >= 0xFDD0 && ch <= 0xFDEF`, `(ch & 0xFFFE) == 0xFFFE`), so `\\xef\\xb7\\x90` is now charged three cells here where the pre-PR code decoded it to U+FDD0, found it narrow, and charged one - while a terminal decodes it and advances exactly one cell. For the genuinely ill-formed vectors the per-byte fallback happens to match Unicode's \"substitution of maximal subparts\" recommendation, so the fallback shape is defensible; it is the reserved-but-well-formed range leaking into the error path that changes rendering.\n\nThis is currently masked because the only caller reaches `align_string_mem()` after `utf8_console_width(field)` returned non-`SIZE_MAX`, i.e. only for strictly valid UTF-8, which makes the whole `n < 0` branch dead. Either advance by `utf8_encoded_expected_len(*p)` (falling back to 1 when that is 0) so a rejected sequence is consumed as one unit, or drop the branch and assert validity, since the caller already guarantees it.",
+  "created_at": "2026-09-04T15:00:27Z",
+  "updated_at": "2026-09-04T15:00:27Z",
+  "html_url": "https://github.com/systemd/systemd/pull/43653#discussion_r3935249116",
+  "pull_request_url": "https://api.github.com/repos/systemd/systemd/pulls/43653",
+  "_links": {
+    "self": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/comments/3935249116"
+    },
+    "html": {
+      "href": "https://github.com/systemd/systemd/pull/43653#discussion_r3935249116"
+    },
+    "pull_request": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/43653"
+    }
+  },
+  "reactions": {
+    "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/3935249116/reactions",
+    "total_count": 0,
+    "+1": 0,
+    "-1": 0,
+    "laugh": 0,
+    "hooray": 0,
+    "confused": 0,
+    "heart": 0,
+    "rocket": 0,
+    "eyes": 0
+  },
+  "start_line": null,
+  "original_start_line": null,
+  "start_side": null,
+  "line": null,
+  "original_line": 2088,
+  "side": "RIGHT",
+  "author_association": "NONE",
+  "original_position": 13,
+  "position": 1,
+  "subject_type": "line"
+}

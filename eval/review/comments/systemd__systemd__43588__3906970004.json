@@ -1,0 +1,69 @@
+{
+  "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/3906970004",
+  "pull_request_review_id": 5081427792,
+  "id": 3906970004,
+  "node_id": "PRRC_kwDOAfWbYc7o36GU",
+  "diff_hunk": "@@ -60,22 +60,76 @@ static inline int DNS_RECORD_TTL_STATE_TO_PERCENT(DnsRecordTTLState ttl_state) {\n         return ttl_percent_table[ttl_state];\n }\n \n-static usec_t mdns_maintenance_next_time(usec_t until, uint32_t ttl, DnsRecordTTLState ttl_state) {\n+/* The maintenance points and the jitter below are fractions of the record's lifetime, but they are\n+ * anchored at 'until'. Hence take the lifetime to be the part of it that is actually cached, i.e. what\n+ * is left until 'until': the cache caps entries at CACHE_TTL_MAX_USEC (see calculate_until_valid())\n+ * while the TTL taken off the network is not capped at all, and a browse subscription may also start\n+ * in the middle of a record's lifetime. Anchoring fractions of the raw TTL at 'until' would put the\n+ * maintenance queries in the past or past cache expiry, where they are never sent. The TTL is an upper\n+ * bound for it, and note the cast: it is a 32-bit value taken directly off the network, and the\n+ * arithmetic on the percentages below wraps if it is left at 32 bits. */\n+static usec_t mdns_maintenance_lifetime(DnsResourceRecord *rr, usec_t until, usec_t usec) {\n+        assert(rr);\n+\n+        return MIN((usec_t) rr->ttl * USEC_PER_SEC, usec_sub_unsigned(until, usec));",
+  "path": "src/resolve/resolved-dns-browse-services.c",
+  "commit_id": "b90b360d3d1c75b72953c4d3efa99fe8f0c1a04e",
+  "original_commit_id": "7785bb17435ca7d1286934b8c623469975db2383",
+  "user": {
+    "login": "github-actions[bot]",
+    "id": 41898282,
+    "node_id": "MDM6Qm90NDE4OTgyODI=",
+    "avatar_url": "https://avatars.githubusercontent.com/in/15368?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/github-actions%5Bbot%5D",
+    "html_url": "https://github.com/apps/github-actions",
+    "followers_url": "https://api.github.com/users/github-actions%5Bbot%5D/followers",
+    "following_url": "https://api.github.com/users/github-actions%5Bbot%5D/following{/other_user}",
+    "gists_url": "https://api.github.com/users/github-actions%5Bbot%5D/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/github-actions%5Bbot%5D/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/github-actions%5Bbot%5D/subscriptions",
+    "organizations_url": "https://api.github.com/users/github-actions%5Bbot%5D/orgs",
+    "repos_url": "https://api.github.com/users/github-actions%5Bbot%5D/repos",
+    "events_url": "https://api.github.com/users/github-actions%5Bbot%5D/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/github-actions%5Bbot%5D/received_events",
+    "type": "Bot",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "body": "Claude: **must-fix**: Re-anchoring on the remaining cached window fixes the never-requeried cases, but it puts no floor on the resulting spacing, so a short window compresses all five maintenance points into it. `TEST(mdns_service_update_short_window)` demonstrates it: with 5 s left until `until`, `lifetime` is 5 s and the points land at 9.00/9.25/9.50/9.75/10.00 s, i.e. four multicast maintenance queries for one record inside 750 ms, and the 2% jitter (100 ms) cannot spread them. With 1 s left they are 50 ms apart with 20 ms of jitter. Each dispatch runs the full `mdns_maintenance_query()` body: a `dns_query_go()` query on the mDNS scope plus, on completion, `mdns_browser_revisit_cache()`, which re-looks-up the cache, diffs the whole `sb->dns_services` list and emits a varlink notification. None of those queries can plausibly be answered and re-cached before `until` passes. This is new relative to the base revision, where a short window made every point come out in the past and the schedule fell through to the query-less 100% state, so nothing was sent; and it is reached routinely, since `dns_add_new_service()` computes `lifetime` from `until - now()` for a subscription that may start anywhere in a record's cached lifetime. RFC 6762 section 5.2 intends the points to be spread over 20% of a real TTL, which is also what makes the 2% variation meaningful for de-synchronising hosts on the link. Please bound the compressed case, e.g. require a minimum absolute gap between consecutive points, or fall through to the 100% cache revisit when `lifetime` is below a small threshold, so it degrades to one refresh rather than four.",
+  "created_at": "2026-09-01T18:09:02Z",
+  "updated_at": "2026-09-01T18:09:03Z",
+  "html_url": "https://github.com/systemd/systemd/pull/43588#discussion_r3906970004",
+  "pull_request_url": "https://api.github.com/repos/systemd/systemd/pulls/43588",
+  "_links": {
+    "self": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/comments/3906970004"
+    },
+    "html": {
+      "href": "https://github.com/systemd/systemd/pull/43588#discussion_r3906970004"
+    },
+    "pull_request": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/43588"
+    }
+  },
+  "reactions": {
+    "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/3906970004/reactions",
+    "total_count": 0,
+    "+1": 0,
+    "-1": 0,
+    "laugh": 0,
+    "hooray": 0,
+    "confused": 0,
+    "heart": 0,
+    "rocket": 0,
+    "eyes": 0
+  },
+  "start_line": null,
+  "original_start_line": null,
+  "start_side": null,
+  "line": 75,
+  "original_line": 74,
+  "side": "RIGHT",
+  "author_association": "NONE",
+  "original_position": 16,
+  "position": 24,
+  "subject_type": "line"
+}

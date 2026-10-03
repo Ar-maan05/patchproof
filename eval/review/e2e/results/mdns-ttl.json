@@ -1,0 +1,139 @@
+{
+  "verdict": "CLAIM_CONFIRMED",
+  "summary": "the reproducer fails on the PR head, but the suggestion does not fix it (it still fails with the suggestion applied)",
+  "evidence": {
+    "comment": {
+      "user": "github-actions[bot]",
+      "html_url": "https://github.com/systemd/systemd/pull/43588#discussion_r3903228287",
+      "path": "src/resolve/resolved-dns-browse-services.c",
+      "line_range": [
+        283,
+        283
+      ],
+      "side": "RIGHT",
+      "commit_id": "805ceff65a32fbe1c0619b6e8d7a3e799347a670"
+    },
+    "test_cmd": "[ -f build/build.ninja ] || meson setup build -Dmode=developer -Dtests=true -Dman=false -Dtranslations=false -Db_sanitize=address -Db_lundef=false >/dev/null && ninja -C build -j6 test-dns-browse-services && { fail=0; build/test-dns-browse-services || fail=1; [ $fail = 0 ]; }",
+    "suggestion": {
+      "source": "--suggestion-patch",
+      "patch": "diff --git a/src/resolve/resolved-dns-browse-services.c b/src/resolve/resolved-dns-browse-services.c\nindex 7dc348f506..45633b3562 100644\n--- a/src/resolve/resolved-dns-browse-services.c\n+++ b/src/resolve/resolved-dns-browse-services.c\n@@ -87,6 +87,35 @@ static usec_t mdns_maintenance_jitter(uint32_t ttl) {\n         return random_u64_range(range);\n }\n \n+/* Returns the time the maintenance event for 'service' is to be armed at, and advances its TTL state to\n+ * match. Maintenance queries are issued at 80% of the record's lifetime and at 5% increments from there\n+ * up to 100%. RFC 6762 section 5.2. Points that have already elapsed are skipped: 'until' is capped by\n+ * the cache (see calculate_until_valid()) while the record's TTL is not, so even a freshly received\n+ * record may have its 80% point in the past, and arming the source there would only make it fire\n+ * immediately and walk the remaining increments in one burst. */\n+static usec_t mdns_maintenance_schedule(DnssdDiscoveredService *service, usec_t usec) {\n+        assert(service);\n+\n+        usec_t next_time = 0;\n+        while (service->rr_ttl_state >= DNS_RECORD_TTL_STATE_80_PERCENT &&\n+               service->rr_ttl_state < _DNS_RECORD_TTL_STATE_MAX) {\n+                next_time = mdns_maintenance_next_time(service->until, service->rr->ttl, service->rr_ttl_state);\n+                if (next_time >= usec)\n+                        break;\n+\n+                service->rr_ttl_state++;\n+        }\n+\n+        if (next_time < usec) {\n+                /* If next_time is still in the past, the record has already expired. Just schedule a\n+                 * 100% maintenance query. */\n+                next_time = usec_add(usec, USEC_PER_SEC);\n+                service->rr_ttl_state = DNS_RECORD_TTL_STATE_100_PERCENT;\n+        }\n+\n+        return usec_add(next_time, mdns_maintenance_jitter(service->rr->ttl));\n+}\n+\n static void mdns_maintenance_query_complete(DnsQuery *q) {\n         _cleanup_(dns_service_browser_unrefp) DnsServiceBrowser *sb = NULL;\n         _cleanup_(dns_query_freep) DnsQuery *query = q;\n@@ -190,36 +219,11 @@ int dns_add_new_service(DnsServiceBrowser *sb, DnsResourceRecord *rr, int owner_\n         if (!s->rr)\n                 return log_oom();\n \n-        /* Schedule the first cache maintenance query at 80% of the record's\n-         * TTL. Subsequent queries issued at 5% increments until 100% of the\n-         * TTL. RFC 6762 section 5.2. If service is being added after 80% of the\n-         * TTL has already elapsed, schedule the next query at the next 5%\n-         * increment. */\n-        usec_t next_time = 0;\n-        while (s->rr_ttl_state >= DNS_RECORD_TTL_STATE_80_PERCENT &&\n-               s->rr_ttl_state < _DNS_RECORD_TTL_STATE_MAX) {\n-                next_time = mdns_maintenance_next_time(s->until, s->rr->ttl, s->rr_ttl_state);\n-                if (next_time >= usec)\n-                        break;\n-\n-                s->rr_ttl_state++;\n-        }\n-\n-        if (next_time < usec) {\n-                /* If next_time is still in the past, the service is being added\n-                 * after it has already expired. Just schedule a 100%\n-                 * maintenance query. */\n-                next_time = usec_add(usec, USEC_PER_SEC);\n-                s->rr_ttl_state = DNS_RECORD_TTL_STATE_100_PERCENT;\n-        }\n-\n-        usec_t jitter = mdns_maintenance_jitter(rr->ttl);\n-\n         r = sd_event_add_time(\n                         sb->manager->event,\n                         &s->schedule_event,\n                         CLOCK_BOOTTIME,\n-                        usec_add(next_time, jitter),\n+                        mdns_maintenance_schedule(s, usec),\n                         /* accuracy= */ 0,\n                         mdns_maintenance_query,\n                         s);\n@@ -271,20 +275,24 @@ int mdns_service_update(DnssdDiscoveredService *service, DnsResourceRecord *rr,\n                 int r;\n \n                 /* The record was refreshed, hence the maintenance schedule starts over at 80% of the\n-                 * new lifetime. Also re-arm the event source: it is one-shot, so it is left disabled\n-                 * once the 100% query has been issued, and merely setting a new time would not bring\n-                 * it back. */\n+                 * new lifetime. Note that event_reset_time() re-enables the source, which matters\n+                 * because it is one-shot, i.e. it is left disabled once the 100% query has been\n+                 * issued, and merely setting a new time would not bring it back. */\n                 service->rr_ttl_state = DNS_RECORD_TTL_STATE_80_PERCENT;\n \n-                usec_t next_time = mdns_maintenance_next_time(\n-                        service->until, service->rr->ttl, DNS_RECORD_TTL_STATE_80_PERCENT);\n-                usec_t jitter = mdns_maintenance_jitter(service->rr->ttl);\n-\n-                r = sd_event_source_set_time(service->schedule_event, usec_add(next_time, jitter));\n+                r = event_reset_time(\n+                                sd_event_source_get_event(service->schedule_event),\n+                                &service->schedule_event,\n+                                CLOCK_BOOTTIME,\n+                                mdns_maintenance_schedule(service, t),\n+                                /* accuracy= */ 0,\n+                                mdns_maintenance_query,\n+                                service,\n+                                /* priority= */ 0,\n+                                \"mdns-next-query-schedule\",\n+                                /* force_reset= */ true);\n                 if (r < 0)\n-                        return r;\n-\n-                return sd_event_source_set_enabled(service->schedule_event, SD_EVENT_ONESHOT);\n+                        return log_error_errno(r, \"Failed to restart mDNS maintenance query schedule: %m\");\n         }\n \n         return 0;\n"
+    },
+    "claim": "Claude: **must-fix**: The unconditional restart at 80% lacks the past-time fallback that `dns_add_new_service()` has (the catch-up loop over `rr_ttl_state` plus `if (next_time < usec)`, lines 198-214), and on this path `service->until` and `service->rr->ttl` are not commensurate.\n\n`until` originates in `dns_cache_lookup()` as `DnsCacheItem.until_valid`, i.e. `timestamp + MIN(ttl * USEC_PER_SEC, CACHE_TTL_MAX_USEC)` (`calculate_until_valid()` in resolved-dns-cache.c) - an absolute CLOCK_BOOTTIME instant capped 2 h past the caching timestamp. It reaches here unmodified via the answer item (`mdns_manage_services_answer()` passes `item->until` to `dns_service_match_and_update()`). `service->rr->ttl` is the raw network TTL, uncapped: the browse lookup does not set `SD_RESOLVED_CLAMP_TTL`, so `answer_add_clamp_ttl()` leaves the RR's TTL alone.\n\nConsequences: for any TTL above 36000 s (10 h), where 20% of the raw TTL already exceeds the 2 h cap, the computed 80% time lies in the past; and once 20% of the TTL exceeds `until` itself (roughly `ttl_sec > 5 * (uptime_sec + 7200)`), `usec_sub_unsigned()` saturates to 0 and the source is armed at `usec_add(0, jitter) == jitter` - an absolute boottime instant drawn purely from the random range, unrelated to the record's lifetime. For the 2^31 TTL the new test uses, that is uniform over ~497 days, so the test's assertion passes while the schedule is still meaningless.\n\nIn the past-time regime the source fires immediately and `mdns_maintenance_query()` walks 85/90/95/100%, each `event_reset_time()`'d into the past as well, so four maintenance queries go out back to back before the 100% branch revisits the cache. If those queries refresh the cache entry, `service->until < until` holds, `mdns_service_update()` resets to 80% and re-arms in the past again - from inside the timer callback - so the burst can repeat as long as the responder keeps answering. Before this change a source left disabled after the 100% query terminated it.\n\nNote `mdns_service_update()` already receives `t` (`dns_service_match_and_update()` passes `now(CLOCK_BOOTTIME)`) and ignores it entirely - that is exactly the timestamp needed. Mirror the existing guard, or factor `dns_add_new_service()`'s catch-up loop into a helper shared by both call sites.",
+    "language": "c",
+    "persistent_workdir": true,
+    "normalisation": {
+      "files": [
+        {
+          "file": "src/resolve/resolved-dns-browse-services.c",
+          "equivalent": false,
+          "method": "tokens"
+        }
+      ]
+    },
+    "suite": {
+      "head_runs": [
+        {
+          "returncode": 0,
+          "passed": true,
+          "timed_out": false,
+          "duration": 0.208
+        }
+      ],
+      "head_passed": 1,
+      "suggestion_runs": [
+        {
+          "returncode": 0,
+          "passed": true,
+          "timed_out": false,
+          "duration": 0.212
+        }
+      ],
+      "suggestion_passed": 1
+    },
+    "reproducer": {
+      "source": "generated",
+      "attempts": [
+        {
+          "attempt": 1,
+          "content": "/* SPDX-License-Identifier: LGPL-2.1-or-later */\n\n#include \"sd-event.h\"\n\n#include \"alloc-util.h\"\n#include \"resolved-dns-browse-services.h\"\n#include \"resolved-dns-rr.h\"\n#include \"tests.h\"\n#include \"time-util.h\"\n\nstatic int dummy_handler(sd_event_source *s, uint64_t usec, void *userdata) {\n        return 0;\n}\n\nTEST(mdns_service_update_huge_ttl_schedule) {\n        _cleanup_(sd_event_unrefp) sd_event *e = NULL;\n        _cleanup_(dns_resource_key_unrefp) DnsResourceKey *key = NULL;\n        _cleanup_(dns_resource_record_unrefp) DnsResourceRecord *rr = NULL;\n        DnssdDiscoveredService *service;\n        usec_t t, until, armed;\n\n        ASSERT_OK(sd_event_new(&e));\n\n        ASSERT_NOT_NULL(key = dns_resource_key_new(DNS_CLASS_IN, DNS_TYPE_SRV, \"svc._http._tcp.local\"));\n        ASSERT_NOT_NULL(rr = dns_resource_record_new(key));\n        rr->ttl = UINT32_C(0x7fffffff);\n\n        t = now(CLOCK_BOOTTIME);\n        /* The cache caps the lifetime of a record at 2 hours from the time it was cached */\n        until = usec_add(t, 2 * USEC_PER_HOUR);\n\n        ASSERT_NOT_NULL(service = new0(DnssdDiscoveredService, 1));\n        service->rr = dns_resource_record_ref(rr);\n        service->until = until;\n        service->rr_ttl_state = DNS_RECORD_TTL_STATE_80_PERCENT;\n\n        ASSERT_OK(sd_event_add_time(\n                          e, &service->schedule_event, CLOCK_BOOTTIME,\n                          usec_add(t, USEC_PER_DAY), 0, dummy_handler, NULL));\n        ASSERT_OK(sd_event_source_set_enabled(service->schedule_event, SD_EVENT_ONESHOT));\n\n        ASSERT_OK(mdns_service_update(service, rr, t, until));\n\n        ASSERT_OK(sd_event_source_get_time(service->schedule_event, &armed));\n        log_info(\"now=%\"PRIu64\" until=%\"PRIu64\" armed=%\"PRIu64, t, until, armed);\n\n        /* The next maintenance query must be scheduled in the future and before the record expires */\n        ASSERT_TRUE(armed >= t);\n        ASSERT_TRUE(armed <= until);\n\n        dns_service_free(service);\n}\n\nDEFINE_TEST_MAIN(LOG_DEBUG);\n",
+          "first_run": {
+            "returncode": 1,
+            "passed": false,
+            "timed_out": false,
+            "duration": 0.139
+          },
+          "classification": {
+            "kind": "compile",
+            "behavioural": false,
+            "reason": "build/compile error, the tests never ran",
+            "detail": "fatal error:"
+          },
+          "outcome": "wrong_reason_failure",
+          "reason": "build/compile error, the tests never ran"
+        },
+        {
+          "attempt": 2,
+          "content": "/* SPDX-License-Identifier: LGPL-2.1-or-later */\n\n#include \"sd-event.h\"\n\n#include \"alloc-util.h\"\n#include \"resolved-dns-browse-services.h\"\n#include \"dns-rr.h\"\n#include \"tests.h\"\n#include \"time-util.h\"\n\nstatic int dummy_handler(sd_event_source *s, uint64_t usec, void *userdata) {\n        return 0;\n}\n\nTEST(mdns_service_update_huge_ttl_schedule) {\n        _cleanup_(sd_event_unrefp) sd_event *e = NULL;\n        _cleanup_(dns_resource_key_unrefp) DnsResourceKey *key = NULL;\n        _cleanup_(dns_resource_record_unrefp) DnsResourceRecord *rr = NULL;\n        DnssdDiscoveredService *service;\n        usec_t t, until, armed;\n\n        ASSERT_OK(sd_event_new(&e));\n\n        ASSERT_NOT_NULL(key = dns_resource_key_new(DNS_CLASS_IN, DNS_TYPE_SRV, \"svc._http._tcp.local\"));\n        ASSERT_NOT_NULL(rr = dns_resource_record_new(key));\n        rr->ttl = UINT32_C(0x7fffffff);\n\n        t = now(CLOCK_BOOTTIME);\n        /* The cache caps the lifetime of a record at 2 hours from the time it was cached */\n        until = usec_add(t, 2 * USEC_PER_HOUR);\n\n        ASSERT_NOT_NULL(service = new0(DnssdDiscoveredService, 1));\n        service->rr = dns_resource_record_ref(rr);\n        service->until = until;\n        service->rr_ttl_state = DNS_RECORD_TTL_STATE_80_PERCENT;\n\n        ASSERT_OK(sd_event_add_time(\n                          e, &service->schedule_event, CLOCK_BOOTTIME,\n                          usec_add(t, USEC_PER_DAY), 0, dummy_handler, NULL));\n        ASSERT_OK(sd_event_source_set_enabled(service->schedule_event, SD_EVENT_ONESHOT));\n\n        ASSERT_OK(mdns_service_update(service, rr, t, until));\n\n        ASSERT_OK(sd_event_source_get_time(service->schedule_event, &armed));\n        log_info(\"now=%\"PRIu64\" until=%\"PRIu64\" armed=%\"PRIu64, t, until, armed);\n\n        /* The next maintenance query must be scheduled in the future and before the record expires */\n        ASSERT_TRUE(armed >= t);\n        ASSERT_TRUE(armed <= until);\n\n        dns_service_free(service);\n}\n\nDEFINE_TEST_MAIN(LOG_DEBUG);\n",
+          "first_run": {
+            "returncode": 134,
+            "passed": false,
+            "timed_out": false,
+            "duration": 0.242
+          },
+          "classification": {
+            "kind": "behavioural",
+            "behavioural": true,
+            "reason": "C runtime failure (sanitizer/assertion)",
+            "detail": "Assertion failed: "
+          },
+          "outcome": "accepted"
+        }
+      ],
+      "path": "src/resolve/test-patchproof-review.c",
+      "cmd": "/home/armaan/Documents/vscode/OpenSourceStuff/patchproof/eval/review/build_repro.sh . test-dns-browse-services src/resolve/test-patchproof-review.c",
+      "existing_tests": null,
+      "content": "/* SPDX-License-Identifier: LGPL-2.1-or-later */\n\n#include \"sd-event.h\"\n\n#include \"alloc-util.h\"\n#include \"resolved-dns-browse-services.h\"\n#include \"dns-rr.h\"\n#include \"tests.h\"\n#include \"time-util.h\"\n\nstatic int dummy_handler(sd_event_source *s, uint64_t usec, void *userdata) {\n        return 0;\n}\n\nTEST(mdns_service_update_huge_ttl_schedule) {\n        _cleanup_(sd_event_unrefp) sd_event *e = NULL;\n        _cleanup_(dns_resource_key_unrefp) DnsResourceKey *key = NULL;\n        _cleanup_(dns_resource_record_unrefp) DnsResourceRecord *rr = NULL;\n        DnssdDiscoveredService *service;\n        usec_t t, until, armed;\n\n        ASSERT_OK(sd_event_new(&e));\n\n        ASSERT_NOT_NULL(key = dns_resource_key_new(DNS_CLASS_IN, DNS_TYPE_SRV, \"svc._http._tcp.local\"));\n        ASSERT_NOT_NULL(rr = dns_resource_record_new(key));\n        rr->ttl = UINT32_C(0x7fffffff);\n\n        t = now(CLOCK_BOOTTIME);\n        /* The cache caps the lifetime of a record at 2 hours from the time it was cached */\n        until = usec_add(t, 2 * USEC_PER_HOUR);\n\n        ASSERT_NOT_NULL(service = new0(DnssdDiscoveredService, 1));\n        service->rr = dns_resource_record_ref(rr);\n        service->until = until;\n        service->rr_ttl_state = DNS_RECORD_TTL_STATE_80_PERCENT;\n\n        ASSERT_OK(sd_event_add_time(\n                          e, &service->schedule_event, CLOCK_BOOTTIME,\n                          usec_add(t, USEC_PER_DAY), 0, dummy_handler, NULL));\n        ASSERT_OK(sd_event_source_set_enabled(service->schedule_event, SD_EVENT_ONESHOT));\n\n        ASSERT_OK(mdns_service_update(service, rr, t, until));\n\n        ASSERT_OK(sd_event_source_get_time(service->schedule_event, &armed));\n        log_info(\"now=%\"PRIu64\" until=%\"PRIu64\" armed=%\"PRIu64, t, until, armed);\n\n        /* The next maintenance query must be scheduled in the future and before the record expires */\n        ASSERT_TRUE(armed >= t);\n        ASSERT_TRUE(armed <= until);\n\n        dns_service_free(service);\n}\n\nDEFINE_TEST_MAIN(LOG_DEBUG);\n",
+      "failure_class": {
+        "kind": "behavioural",
+        "behavioural": true,
+        "reason": "C runtime failure (sanitizer/assertion)",
+        "detail": "Assertion failed: "
+      },
+      "failure_output_tail": "...esolve_resolved-dns-browse-services.c.o systemd-resolved.p/src_resolve_resolved-dns-cache.c.o systemd-resolved.p/src_resolve_resolved-dns-delegate.c.o systemd-resolved.p/src_resolve_resolved-dns-delegate-bus.c.o systemd-resolved.p/src_resolve_resolved-dns-dnssec.c.o systemd-resolved.p/src_resolve_resolved-dns-query.c.o systemd-resolved.p/src_resolve_resolved-dns-scope.c.o systemd-resolved.p/src_resolve_resolved-dns-search-domain.c.o systemd-resolved.p/src_resolve_resolved-dns-server.c.o systemd-resolved.p/src_resolve_resolved-dns-stream.c.o systemd-resolved.p/src_resolve_resolved-dns-stub.c.o systemd-resolved.p/src_resolve_resolved-dns-synthesize.c.o systemd-resolved.p/src_resolve_resolved-dns-transaction.c.o systemd-resolved.p/src_resolve_resolved-dns-trust-anchor.c.o systemd-resolved.p/src_resolve_resolved-dns-zone.c.o systemd-resolved.p/src_resolve_resolved-dnssd-bus.c.o systemd-resolved.p/src_resolve_resolved-dnssd.c.o systemd-resolved.p/src_resolve_resolved-etc-hosts.c.o systemd-resolved.p/src_resolve_resolved-hook.c.o systemd-resolved.p/src_resolve_resolved-link-bus.c.o systemd-resolved.p/src_resolve_resolved-link.c.o systemd-resolved.p/src_resolve_resolved-llmnr.c.o systemd-resolved.p/src_resolve_resolved-manager.c.o systemd-resolved.p/src_resolve_resolved-mdns.c.o systemd-resolved.p/src_resolve_resolved-resolv-conf.c.o systemd-resolved.p/src_resolve_resolved-socket-graveyard.c.o systemd-resolved.p/src_resolve_resolved-static-records.c.o systemd-resolved.p/src_resolve_resolved-util.c.o systemd-resolved.p/src_resolve_resolved-varlink.c.o systemd-resolved.p/src_resolve_resolved-dnstls.c.o systemd-resolved.p/meson-generated_.._src_resolve_resolved-gperf.c.o systemd-resolved.p/meson-generated_.._src_resolve_resolved-dnssd-gperf.c.o systemd-resolved.p/meson-generated_.._src_resolve_resolved-dns-delegate-gperf.c.o patchproof-review-repro.o -fsanitize=address -Wl,--as-needed -Wl,--allow-shlib-undefined -fstack-protector '-Wl,-rpath,$ORIGIN/src/shared' src/shared/libsystemd-shared-262.so -Wl,--fatal-warnings -Wl,-z,now -Wl,-z,relro -Wl,--gc-sections \n[build_repro] running build/patchproof-review-repro\n/* test_mdns_service_update_huge_ttl_schedule */\nnow=3586616261 until=10786616261 armed=4797772055115\nsrc/resolve/test-patchproof-review.c:49: Assertion failed: Expected \"armed <= until\" to be true\n/home/armaan/Documents/vscode/OpenSourceStuff/patchproof/eval/review/build_repro.sh: line 89: 66930 Aborted                    timeout -k 5 \"$REPRO_TIMEOUT\" \"$out\"\n",
+      "head_runs": [
+        {
+          "returncode": 134,
+          "passed": false,
+          "timed_out": false,
+          "duration": 0.242
+        }
+      ],
+      "failed_on_head": true,
+      "head_flaky": false,
+      "suggestion_runs": [
+        {
+          "returncode": 134,
+          "passed": false,
+          "timed_out": false,
+          "duration": 0.252
+        }
+      ],
+      "suggestion_failure_output_tail": "...solve_resolved-dns-browse-services.c.o systemd-resolved.p/src_resolve_resolved-dns-cache.c.o systemd-resolved.p/src_resolve_resolved-dns-delegate.c.o systemd-resolved.p/src_resolve_resolved-dns-delegate-bus.c.o systemd-resolved.p/src_resolve_resolved-dns-dnssec.c.o systemd-resolved.p/src_resolve_resolved-dns-query.c.o systemd-resolved.p/src_resolve_resolved-dns-scope.c.o systemd-resolved.p/src_resolve_resolved-dns-search-domain.c.o systemd-resolved.p/src_resolve_resolved-dns-server.c.o systemd-resolved.p/src_resolve_resolved-dns-stream.c.o systemd-resolved.p/src_resolve_resolved-dns-stub.c.o systemd-resolved.p/src_resolve_resolved-dns-synthesize.c.o systemd-resolved.p/src_resolve_resolved-dns-transaction.c.o systemd-resolved.p/src_resolve_resolved-dns-trust-anchor.c.o systemd-resolved.p/src_resolve_resolved-dns-zone.c.o systemd-resolved.p/src_resolve_resolved-dnssd-bus.c.o systemd-resolved.p/src_resolve_resolved-dnssd.c.o systemd-resolved.p/src_resolve_resolved-etc-hosts.c.o systemd-resolved.p/src_resolve_resolved-hook.c.o systemd-resolved.p/src_resolve_resolved-link-bus.c.o systemd-resolved.p/src_resolve_resolved-link.c.o systemd-resolved.p/src_resolve_resolved-llmnr.c.o systemd-resolved.p/src_resolve_resolved-manager.c.o systemd-resolved.p/src_resolve_resolved-mdns.c.o systemd-resolved.p/src_resolve_resolved-resolv-conf.c.o systemd-resolved.p/src_resolve_resolved-socket-graveyard.c.o systemd-resolved.p/src_resolve_resolved-static-records.c.o systemd-resolved.p/src_resolve_resolved-util.c.o systemd-resolved.p/src_resolve_resolved-varlink.c.o systemd-resolved.p/src_resolve_resolved-dnstls.c.o systemd-resolved.p/meson-generated_.._src_resolve_resolved-gperf.c.o systemd-resolved.p/meson-generated_.._src_resolve_resolved-dnssd-gperf.c.o systemd-resolved.p/meson-generated_.._src_resolve_resolved-dns-delegate-gperf.c.o patchproof-review-repro.o -fsanitize=address -Wl,--as-needed -Wl,--allow-shlib-undefined -fstack-protector '-Wl,-rpath,$ORIGIN/src/shared' src/shared/libsystemd-shared-262.so -Wl,--fatal-warnings -Wl,-z,now -Wl,-z,relro -Wl,--gc-sections \n[build_repro] running build/patchproof-review-repro\n/* test_mdns_service_update_huge_ttl_schedule */\nnow=3587083372 until=10787083372 armed=36819874153093\nsrc/resolve/test-patchproof-review.c:49: Assertion failed: Expected \"armed <= until\" to be true\n/home/armaan/Documents/vscode/OpenSourceStuff/patchproof/eval/review/build_repro.sh: line 89: 66955 Aborted                    timeout -k 5 \"$REPRO_TIMEOUT\" \"$out\"\n"
+    },
+    "findings": [
+      {
+        "verdict": "CLAIM_CONFIRMED",
+        "message": "the reproducer fails on the PR head, but the suggestion does not fix it (it still fails with the suggestion applied)"
+      }
+    ]
+  },
+  "hunks": [],
+  "timings": {
+    "suite_head": 0.208,
+    "reproducer_head": 0.392,
+    "suite_suggestion": 0.212,
+    "reproducer_suggestion": 0.252,
+    "total": 1.074
+  },
+  "wall_seconds": 1.1
+}

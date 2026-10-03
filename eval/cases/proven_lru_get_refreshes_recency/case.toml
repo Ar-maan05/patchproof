@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_lru.py'
+expected_verdict = "PROVEN"
+category = "real_fix"
+source = "synthetic"
+notes = '''LRUCache.get() returned the value without marking the key most-recently-used, so frequently read keys were evicted first (FIFO behaviour). Fix adds move_to_end in get(). Test fills a 2-slot cache, reads the oldest key and checks that the other key is evicted.'''

@@ -1,0 +1,40 @@
+diff --git a/sizes.py b/sizes.py
+index f68b259..d7bde91 100644
+--- a/sizes.py
++++ b/sizes.py
+@@ -13,7 +13,7 @@ def parse_size(text: str) -> int:
+     if not m:
+         raise ValueError(f"bad size: {text!r}")
+     number, unit = m.groups()
+-    factor = _UNITS[unit]
++    factor = _UNITS[unit.lower() or "b"]
+     return int(float(number) * factor)
+ 
+ 
+diff --git a/tests/test_sizes.py b/tests/test_sizes.py
+new file mode 100644
+index 0000000..3480474
+--- /dev/null
++++ b/tests/test_sizes.py
+@@ -0,0 +1,21 @@
++import pytest
++
++from sizes import parse_size
++
++
++def test_uppercase_units():
++    assert parse_size("10KB") == 10240
++
++
++def test_lowercase_and_spacing():
++    assert parse_size("10kb") == 10240
++    assert parse_size("1.5 Mb") == 1572864
++
++
++def test_bare_number_is_bytes():
++    assert parse_size("512") == 512
++
++
++def test_garbage():
++    with pytest.raises(ValueError):
++        parse_size("ten")

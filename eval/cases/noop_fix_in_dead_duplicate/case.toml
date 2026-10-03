@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_text.py'
+expected_verdict = "NO_OP"
+category = "noop"
+source = "synthetic (fix applied to the wrong copy of duplicated code)"
+notes = '''slugify exists twice: text.py (live, already correct) and _legacy_text.py (dead copy that nothing imports). The patch strips hyphens in the dead copy while the test exercises the live one, which already passes on base. Typical mistake when an agent greps for the function name and edits the first hit.'''

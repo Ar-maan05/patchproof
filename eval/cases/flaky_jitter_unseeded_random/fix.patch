@@ -1,0 +1,23 @@
+diff --git a/jitter.py b/jitter.py
+index 2388609..d2965a2 100644
+--- a/jitter.py
++++ b/jitter.py
+@@ -3,4 +3,4 @@ import random
+ 
+ 
+ def jittered_delay(attempt: int, base: float = 1.0, cap: float = 30.0) -> float:
+-    return random.uniform(0, base * 2 ** attempt)
++    return random.uniform(0, min(cap, base * 2 ** attempt))
+diff --git a/tests/test_jitter.py b/tests/test_jitter.py
+new file mode 100644
+index 0000000..1fde789
+--- /dev/null
++++ b/tests/test_jitter.py
+@@ -0,0 +1,7 @@
++from jitter import jittered_delay
++
++
++def test_delay_is_capped_and_substantial():
++    d = jittered_delay(10)
++    assert d <= 30.0
++    assert d >= 15.0  # should still back off substantially

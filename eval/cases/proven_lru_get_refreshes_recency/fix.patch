@@ -1,0 +1,43 @@
+diff --git a/lru.py b/lru.py
+index e28c149..a5a0420 100644
+--- a/lru.py
++++ b/lru.py
+@@ -15,6 +15,7 @@ class LRUCache:
+     def get(self, key: Hashable, default: Any = None) -> Any:
+         if key not in self._data:
+             return default
++        self._data.move_to_end(key)
+         return self._data[key]
+ 
+     def put(self, key: Hashable, value: Any) -> None:
+diff --git a/tests/test_lru.py b/tests/test_lru.py
+new file mode 100644
+index 0000000..dd8aa67
+--- /dev/null
++++ b/tests/test_lru.py
+@@ -0,0 +1,25 @@
++from lru import LRUCache
++
++
++def test_get_refreshes_recency():
++    c = LRUCache(2)
++    c.put("a", 1)
++    c.put("b", 2)
++    assert c.get("a") == 1
++    c.put("c", 3)
++    assert "a" in c
++    assert "b" not in c
++    assert "c" in c
++
++
++def test_untouched_eviction_order_is_fifo():
++    c = LRUCache(2)
++    c.put("a", 1)
++    c.put("b", 2)
++    c.put("c", 3)
++    assert "a" not in c
++    assert len(c) == 2
++
++
++def test_missing_key_default():
++    assert LRUCache(1).get("x", "dflt") == "dflt"

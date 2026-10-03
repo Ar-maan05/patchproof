@@ -1,0 +1,30 @@
+{
+  "id": "mdns-ttl",
+  "comment_json": "comments/systemd__systemd__43588__3903228287.json",
+  "comment_url": "https://github.com/systemd/systemd/pull/43588#discussion_r3903228287",
+  "head_sha": "805ceff65a32fbe1c0619b6e8d7a3e799347a670",
+  "fix_sha": "23de6578ac41b8a1575dea3038b829cf2bf4de16",
+  "ground_truth": {
+    "outcome": "applied",
+    "claim_class": "real_bug"
+  },
+  "build_targets": [
+    "test-dns-browse-services"
+  ],
+  "suite_commands": [
+    "build/test-dns-browse-services"
+  ],
+  "reference_test": "test-dns-browse-services",
+  "reproducer_path": "src/resolve/test-patchproof-review.c",
+  "suggestion": {
+    "file": "suggestion.patch",
+    "kind": "fix_commit",
+    "derived_from": "805ceff65a..23de6578ac",
+    "restricted_to": [
+      "src/resolve/resolved-dns-browse-services.c"
+    ],
+    "note": "git diff 805ceff6 23de6578 -- src/resolve/resolved-dns-browse-services.c: adds mdns_maintenance_schedule() with the catch-up loop, used from both call sites. Test file excluded."
+  },
+  "expected_verdict": "NECESSARY",
+  "expected_reason": "real_bug + applied + the suggestion is the later fix"
+}

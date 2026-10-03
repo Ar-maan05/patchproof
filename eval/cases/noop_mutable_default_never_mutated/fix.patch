@@ -1,0 +1,32 @@
+diff --git a/collector.py b/collector.py
+index 66655b6..5ba3b59 100644
+--- a/collector.py
++++ b/collector.py
+@@ -1,7 +1,7 @@
+ """Tag collection helpers."""
+ 
+ 
+-def collect_tags(tag, acc=[]):
+-    acc = list(acc)
++def collect_tags(tag, acc=None):
++    acc = list(acc or [])
+     acc.append(tag)
+     return acc
+diff --git a/tests/test_collector.py b/tests/test_collector.py
+new file mode 100644
+index 0000000..31355e8
+--- /dev/null
++++ b/tests/test_collector.py
+@@ -0,0 +1,12 @@
++from collector import collect_tags
++
++
++def test_calls_are_independent():
++    assert collect_tags("a") == ["a"]
++    assert collect_tags("b") == ["b"]
++
++
++def test_accumulates_when_given():
++    first = collect_tags("a")
++    assert collect_tags("b", first) == ["a", "b"]
++    assert first == ["a"]

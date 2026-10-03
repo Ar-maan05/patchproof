@@ -1,0 +1,69 @@
+{
+  "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/4094196449",
+  "pull_request_review_id": 5305144685,
+  "id": 4094196449,
+  "node_id": "PRRC_kwDOAfWbYc70CHrh",
+  "diff_hunk": "@@ -332,6 +335,26 @@ files_metrics=\"$(varlinkctl call --more /run/systemd/report/io.systemd.Files io.\n [ -z \"$(files_value io.systemd.Files.binaryfile)\" ]\n rm -f /run/systemd/report.files/binaryfile\n \n+# An entry in an earlier directory that is a symlink to /dev/null masks the one\n+# in a later directory: it must be neither listed nor described. An entry that\n+# isn't a regular file is ignored, so the later one is reported instead.\n+mkdir -p /var/lib/systemd/report.files\n+echo masked >/var/lib/systemd/report.files/maskedfile\n+echo shadowed >/var/lib/systemd/report.files/dirshadowed\n+ln -s /dev/null /run/systemd/report.files/maskedfile\n+mkdir /run/systemd/report.files/dirshadowed\n+echo fifo-shadowed >/var/lib/systemd/report.files/fifoshadowed\n+mkfifo /run/systemd/report.files/fifoshadowed\n+files_metrics=\"$(varlinkctl call --more /run/systemd/report/io.systemd.Files io.systemd.Metrics.List {})\"\n+files_describe=\"$(varlinkctl call --more /run/systemd/report/io.systemd.Files io.systemd.Metrics.Describe {})\"\n+[ -z \"$(files_value io.systemd.Files.maskedfile)\" ]",
+  "path": "test/units/TEST-74-AUX-UTILS.report.sh",
+  "commit_id": "c209e4fc608699c24ce6a9f23509e848df550bb3",
+  "original_commit_id": "c209e4fc608699c24ce6a9f23509e848df550bb3",
+  "user": {
+    "login": "github-actions[bot]",
+    "id": 41898282,
+    "node_id": "MDM6Qm90NDE4OTgyODI=",
+    "avatar_url": "https://avatars.githubusercontent.com/in/15368?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/github-actions%5Bbot%5D",
+    "html_url": "https://github.com/apps/github-actions",
+    "followers_url": "https://api.github.com/users/github-actions%5Bbot%5D/followers",
+    "following_url": "https://api.github.com/users/github-actions%5Bbot%5D/following{/other_user}",
+    "gists_url": "https://api.github.com/users/github-actions%5Bbot%5D/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/github-actions%5Bbot%5D/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/github-actions%5Bbot%5D/subscriptions",
+    "organizations_url": "https://api.github.com/users/github-actions%5Bbot%5D/orgs",
+    "repos_url": "https://api.github.com/users/github-actions%5Bbot%5D/repos",
+    "events_url": "https://api.github.com/users/github-actions%5Bbot%5D/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/github-actions%5Bbot%5D/received_events",
+    "type": "Bot",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "body": "Claude: **suggestion**: Passes vacuously: if masking regressed and the /dev/null symlink were read, the value would be empty too. Assert the name is absent from List instead: (! echo \"$files_metrics\" | jq --seq -r .name | grep -wx io.systemd.Files.maskedfile >/dev/null)",
+  "created_at": "2026-09-24T13:33:37Z",
+  "updated_at": "2026-09-24T13:33:37Z",
+  "html_url": "https://github.com/systemd/systemd/pull/43872#discussion_r4094196449",
+  "pull_request_url": "https://api.github.com/repos/systemd/systemd/pulls/43872",
+  "_links": {
+    "self": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/comments/4094196449"
+    },
+    "html": {
+      "href": "https://github.com/systemd/systemd/pull/43872#discussion_r4094196449"
+    },
+    "pull_request": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/43872"
+    }
+  },
+  "reactions": {
+    "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/4094196449/reactions",
+    "total_count": 0,
+    "+1": 0,
+    "-1": 0,
+    "laugh": 0,
+    "hooray": 0,
+    "confused": 0,
+    "heart": 0,
+    "rocket": 0,
+    "eyes": 0
+  },
+  "start_line": null,
+  "original_start_line": null,
+  "start_side": null,
+  "line": 350,
+  "original_line": 350,
+  "side": "RIGHT",
+  "author_association": "NONE",
+  "original_position": 26,
+  "position": 26,
+  "subject_type": "line"
+}

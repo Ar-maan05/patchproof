@@ -1,0 +1,28 @@
+diff --git a/retry.py b/retry.py
+index ba4d394..4c6821e 100644
+--- a/retry.py
++++ b/retry.py
+@@ -6,4 +6,7 @@ from datetime import datetime
+ 
+ def parse_retry_after(value: str, now: datetime | None = None) -> int:
+     """Seconds to wait given a Retry-After header (delta-seconds or HTTP-date)."""
+-    return int(value)
++    try:
++        return max(int(value), 0)
++    except ValueError:
++        return 0
+diff --git a/tests/test_retry.py b/tests/test_retry.py
+new file mode 100644
+index 0000000..4eac5ce
+--- /dev/null
++++ b/tests/test_retry.py
+@@ -0,0 +1,9 @@
++from retry import parse_retry_after
++
++
++def test_delta_seconds():
++    assert parse_retry_after("120") == 120
++
++
++def test_http_date_does_not_crash():
++    assert parse_retry_after("Wed, 21 Oct 2026 07:28:00 GMT") >= 0

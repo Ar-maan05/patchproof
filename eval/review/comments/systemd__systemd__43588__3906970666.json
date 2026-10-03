@@ -1,0 +1,69 @@
+{
+  "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/3906970666",
+  "pull_request_review_id": 5081428610,
+  "id": 3906970666,
+  "node_id": "PRRC_kwDOAfWbYc7o36Qq",
+  "diff_hunk": "@@ -60,22 +60,76 @@ static inline int DNS_RECORD_TTL_STATE_TO_PERCENT(DnsRecordTTLState ttl_state) {\n         return ttl_percent_table[ttl_state];\n }\n \n-static usec_t mdns_maintenance_next_time(usec_t until, uint32_t ttl, DnsRecordTTLState ttl_state) {\n+/* The maintenance points and the jitter below are fractions of the record's lifetime, but they are\n+ * anchored at 'until'. Hence take the lifetime to be the part of it that is actually cached, i.e. what\n+ * is left until 'until': the cache caps entries at CACHE_TTL_MAX_USEC (see calculate_until_valid())\n+ * while the TTL taken off the network is not capped at all, and a browse subscription may also start\n+ * in the middle of a record's lifetime. Anchoring fractions of the raw TTL at 'until' would put the\n+ * maintenance queries in the past or past cache expiry, where they are never sent. The TTL is an upper\n+ * bound for it, and note the cast: it is a 32-bit value taken directly off the network, and the\n+ * arithmetic on the percentages below wraps if it is left at 32 bits. */\n+static usec_t mdns_maintenance_lifetime(DnsResourceRecord *rr, usec_t until, usec_t usec) {\n+        assert(rr);\n+\n+        return MIN((usec_t) rr->ttl * USEC_PER_SEC, usec_sub_unsigned(until, usec));\n+}\n+\n+static usec_t mdns_maintenance_next_time(usec_t until, usec_t lifetime, DnsRecordTTLState ttl_state) {\n         assert(ttl_state >= DNS_RECORD_TTL_STATE_80_PERCENT);\n         assert(ttl_state < _DNS_RECORD_TTL_STATE_MAX);\n \n         int percent = DNS_RECORD_TTL_STATE_TO_PERCENT(ttl_state);\n         assert(percent > 0);\n         assert(percent <= 100);\n \n-        return usec_sub_unsigned(until, (100 - percent) * ttl * USEC_PER_SEC / 100);\n+        return usec_sub_unsigned(until, (100 - percent) * lifetime / 100);\n }\n \n /* RFC 6762 section 5.2\n  * A random variation of 2% of the record TTL should\n  * be added to maintenance queries. */\n-static usec_t mdns_maintenance_jitter(uint32_t ttl) {\n-        return random_u64_range(2 * ttl * USEC_PER_SEC / 100);\n+static usec_t mdns_maintenance_jitter(usec_t lifetime) {\n+        usec_t range = 2 * lifetime / 100;\n+\n+        /* Note that random_u64_range(0) returns a value from the full 64-bit range rather than 0. */\n+        if (range == 0)\n+                return 0;\n+\n+        return random_u64_range(range);\n+}\n+\n+/* Returns the time the maintenance event for 'service' is to be armed at, scheduling from the TTL state\n+ * '*ttl_state' and storing the state the returned time belongs to back in it. Maintenance queries are\n+ * issued at 80% of the record's cached lifetime and at 5% increments from there up to 100%. RFC 6762\n+ * section 5.2. Points that have already elapsed are skipped: arming the source in the past would only\n+ * make it fire immediately and walk the remaining increments in one burst. Note that the state is not\n+ * committed to 'service' here, so that callers can do so only once the source is actually armed. */\n+usec_t mdns_maintenance_schedule(const DnssdDiscoveredService *service, usec_t usec, DnsRecordTTLState *ttl_state) {\n+        assert(service);\n+        assert(ttl_state);\n+\n+        usec_t next_time = 0;\n+        while (*ttl_state >= DNS_RECORD_TTL_STATE_80_PERCENT && *ttl_state < _DNS_RECORD_TTL_STATE_MAX) {\n+                next_time = mdns_maintenance_next_time(service->until, service->lifetime, *ttl_state);\n+                if (next_time >= usec)",
+  "path": "src/resolve/resolved-dns-browse-services.c",
+  "commit_id": "7785bb17435ca7d1286934b8c623469975db2383",
+  "original_commit_id": "7785bb17435ca7d1286934b8c623469975db2383",
+  "user": {
+    "login": "github-actions[bot]",
+    "id": 41898282,
+    "node_id": "MDM6Qm90NDE4OTgyODI=",
+    "avatar_url": "https://avatars.githubusercontent.com/in/15368?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/github-actions%5Bbot%5D",
+    "html_url": "https://github.com/apps/github-actions",
+    "followers_url": "https://api.github.com/users/github-actions%5Bbot%5D/followers",
+    "following_url": "https://api.github.com/users/github-actions%5Bbot%5D/following{/other_user}",
+    "gists_url": "https://api.github.com/users/github-actions%5Bbot%5D/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/github-actions%5Bbot%5D/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/github-actions%5Bbot%5D/subscriptions",
+    "organizations_url": "https://api.github.com/users/github-actions%5Bbot%5D/orgs",
+    "repos_url": "https://api.github.com/users/github-actions%5Bbot%5D/repos",
+    "events_url": "https://api.github.com/users/github-actions%5Bbot%5D/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/github-actions%5Bbot%5D/received_events",
+    "type": "Bot",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "body": "Claude: **suggestion**: Because this skips only points strictly in the past, a zero or exhausted lifetime still arms a query at the instant of expiry. When `lifetime == 0` but `until >= usec` (a TTL-0 record, or `until == usec` exactly), `mdns_maintenance_next_time()` returns `until` for all five states, so the loop breaks at the first state and the source is armed at `until` while the state stays 80%. `TEST(mdns_service_update_zero_ttl)` encodes exactly that (`next == until`, state left at 80%). Once it fires, the callback recomputes with `t` at or barely past `until`; while `t` has not yet passed `until` it gets `until` again, re-arming in the present and re-dispatching immediately, advancing one state per dispatch -- the \"fire immediately and walk the remaining increments in one burst\" behaviour the comment at lines 104-105 says is being avoided, and up to four real maintenance queries for a record with no lifetime left. Short-circuiting `lifetime == 0` to the `DNS_RECORD_TTL_STATE_100_PERCENT` revisit path would close it.",
+  "created_at": "2026-09-01T18:09:08Z",
+  "updated_at": "2026-09-01T18:09:09Z",
+  "html_url": "https://github.com/systemd/systemd/pull/43588#discussion_r3906970666",
+  "pull_request_url": "https://api.github.com/repos/systemd/systemd/pulls/43588",
+  "_links": {
+    "self": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/comments/3906970666"
+    },
+    "html": {
+      "href": "https://github.com/systemd/systemd/pull/43588#discussion_r3906970666"
+    },
+    "pull_request": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/43588"
+    }
+  },
+  "reactions": {
+    "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/3906970666/reactions",
+    "total_count": 0,
+    "+1": 0,
+    "-1": 0,
+    "laugh": 0,
+    "hooray": 0,
+    "confused": 0,
+    "heart": 0,
+    "rocket": 0,
+    "eyes": 0
+  },
+  "start_line": null,
+  "original_start_line": null,
+  "start_side": null,
+  "line": null,
+  "original_line": 114,
+  "side": "RIGHT",
+  "author_association": "NONE",
+  "original_position": 59,
+  "position": 1,
+  "subject_type": "line"
+}

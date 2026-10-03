@@ -1,0 +1,44 @@
+diff --git a/httpclass.py b/httpclass.py
+index 2f5136b..641732e 100644
+--- a/httpclass.py
++++ b/httpclass.py
+@@ -2,12 +2,12 @@
+ 
+ 
+ def classify(status: int) -> str:
+-    if status >= 500:
+-        return "server_error"
+-    if status >= 400:
+-        return "client_error"
+-    if status >= 300:
+-        return "redirect"
+-    if status >= 200:
++    if status < 200:
++        return "informational"
++    if status < 300:
+         return "success"
+-    return "informational"
++    if status < 400:
++        return "redirect"
++    if status < 500:
++        return "client_error"
++    return "server_error"
+diff --git a/tests/test_httpclass.py b/tests/test_httpclass.py
+new file mode 100644
+index 0000000..5d995c0
+--- /dev/null
++++ b/tests/test_httpclass.py
+@@ -0,0 +1,13 @@
++import pytest
++
++from httpclass import classify
++
++
++@pytest.mark.parametrize(
++    "status,label",
++    [(100, "informational"), (200, "success"), (204, "success"), (301, "redirect"),
++     (399, "redirect"), (400, "client_error"), (404, "client_error"), (499, "client_error"),
++     (500, "server_error"), (503, "server_error")],
++)
++def test_classes(status, label):
++    assert classify(status) == label

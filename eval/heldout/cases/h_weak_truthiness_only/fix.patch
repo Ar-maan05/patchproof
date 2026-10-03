@@ -1,0 +1,22 @@
+diff --git a/names.py b/names.py
+index a198a0e..0110e9b 100644
+--- a/names.py
++++ b/names.py
+@@ -2,4 +2,4 @@
+ 
+ 
+ def display_name(user: dict) -> str:
+-    return user["first"] + " " + user["last"]
++    return " ".join(p for p in (user.get("first"), user.get("last")) if p)
+diff --git a/tests/test_names.py b/tests/test_names.py
+new file mode 100644
+index 0000000..530fba4
+--- /dev/null
++++ b/tests/test_names.py
+@@ -0,0 +1,6 @@
++from names import display_name
++
++
++def test_missing_last_name():
++    result = display_name({"first": "Ada"})
++    assert result

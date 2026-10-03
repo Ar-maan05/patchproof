@@ -1,0 +1,69 @@
+{
+  "url": "https://api.github.com/repos/lance-format/lance/pulls/comments/3786287555",
+  "pull_request_review_id": 4940171802,
+  "id": 3786287555,
+  "node_id": "PRRC_kwDOHn_KdM7hrinD",
+  "diff_hunk": "@@ -3207,6 +3352,139 @@ impl LanceNamespace for ManifestNamespace {\n         }\n     }\n \n+    async fn rename_table(&self, request: RenameTableRequest) -> Result<RenameTableResponse> {\n+        let table_id = request.id.as_ref().ok_or_else(|| {\n+            lance_core::Error::from(NamespaceError::InvalidInput {\n+                message: \"Table ID is required\".to_string(),\n+            })\n+        })?;\n+\n+        if table_id.is_empty() {\n+            return Err(NamespaceError::InvalidInput {\n+                message: \"Table ID cannot be empty\".to_string(),\n+            }\n+            .into());\n+        }\n+\n+        if request.new_table_name.trim().is_empty() {\n+            return Err(NamespaceError::InvalidInput {\n+                message: \"new_table_name cannot be empty\".to_string(),\n+            }\n+            .into());\n+        }\n+\n+        let (source_namespace, _) = Self::split_object_id(table_id);\n+        let source_object_id = Self::str_object_id(table_id);\n+\n+        let source_info = self\n+            .query_manifest_for_table(&source_object_id)\n+            .boxed()\n+            .await?\n+            .ok_or_else(|| {\n+                lance_core::Error::from(NamespaceError::TableNotFound {\n+                    message: Self::format_table_id(table_id),\n+                })\n+            })?;\n+\n+        // Default to the source namespace when no destination namespace is provided.\n+        let destination_namespace = match request.new_namespace_id.as_ref() {\n+            Some(namespace) => namespace.clone(),\n+            None => source_namespace,\n+        };\n+        if !destination_namespace.is_empty() {\n+            self.validate_namespace_levels_exist(&destination_namespace)\n+                .boxed()\n+                .await?;\n+        }\n+\n+        let destination_object_id =\n+            Self::build_object_id(&destination_namespace, &request.new_table_name);\n+        if self\n+            .manifest_contains_object(&destination_object_id)\n+            .boxed()\n+            .await?\n+        {\n+            return Err(NamespaceError::TableAlreadyExists {\n+                message: request.new_table_name.clone(),\n+            }\n+            .into());\n+        }\n+\n+        // Refuse an unwritable manifest before copying anything, so a rejected rename\n+        // leaves no orphaned copy behind.\n+        self.ensure_manifest_writable().boxed().await?;\n+\n+        // Choose the destination directory the same way create_table does so the\n+        // physical layout stays consistent with how tables are otherwise created.\n+        let destination_dir_name = if destination_namespace.is_empty() && self.dir_listing_enabled {\n+            // Root tables are resolved from the directory listing here, so the destination\n+            // directory name is dictated by the new table name and cannot be varied.\n+            // Copying into a prefix that still holds objects would interleave two datasets\n+            // under one name, so the name is only usable while the prefix is empty.\n+            let dir_name = format!(\"{}.lance\", request.new_table_name);\n+            let dir_path = self.base_path.clone().join(dir_name.as_str());\n+            if self\n+                .object_store\n+                .list(Some(dir_path))\n+                .try_next()\n+                .boxed()\n+                .await?\n+                .is_some()\n+            {\n+                return Err(NamespaceError::TableAlreadyExists {\n+                    message: format!(\n+                        \"{}: directory '{}' is not empty, remove it before renaming into it\",\n+                        request.new_table_name, dir_name\n+                    ),\n+                }\n+                .into());\n+            }\n+            dir_name\n+        } else {\n+            Self::generate_dir_name(&destination_object_id)\n+        };\n+\n+        let source_dir = self.base_path.clone().join(source_info.location.as_str());\n+        let destination_dir = self.base_path.clone().join(destination_dir_name.as_str());\n+        copy_dir_all(&self.object_store, &source_dir, &destination_dir)\n+            .boxed()\n+            .await?;\n+\n+        // Retire the old name and publish the new one in a single manifest commit: two\n+        // commits would expose both names at once, and a failure between them would leave\n+        // the extra alias behind for good.\n+        let metadata = Self::serialize_metadata(\n+            source_info.metadata.as_ref(),\n+            \"table\",\n+            &destination_object_id,\n+        )?;\n+        self.rename_in_manifest(\n+            &source_object_id,\n+            ManifestEntry {\n+                object_id: destination_object_id,\n+                object_type: ObjectType::Table,\n+                location: Some(destination_dir_name),\n+                metadata,\n+            },\n+        )\n+        .boxed()\n+        .await?;",
+  "path": "rust/lance-namespace-impls/src/dir/manifest.rs",
+  "commit_id": "a0cf8e9a5f5443447d45146a37f2af0922540aa4",
+  "original_commit_id": "a0cf8e9a5f5443447d45146a37f2af0922540aa4",
+  "user": {
+    "login": "lance-gatekeeper[bot]",
+    "id": 310925327,
+    "node_id": "BOT_kgDOEohYDw",
+    "avatar_url": "https://avatars.githubusercontent.com/in/4433141?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/lance-gatekeeper%5Bbot%5D",
+    "html_url": "https://github.com/apps/lance-gatekeeper",
+    "followers_url": "https://api.github.com/users/lance-gatekeeper%5Bbot%5D/followers",
+    "following_url": "https://api.github.com/users/lance-gatekeeper%5Bbot%5D/following{/other_user}",
+    "gists_url": "https://api.github.com/users/lance-gatekeeper%5Bbot%5D/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/lance-gatekeeper%5Bbot%5D/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/lance-gatekeeper%5Bbot%5D/subscriptions",
+    "organizations_url": "https://api.github.com/users/lance-gatekeeper%5Bbot%5D/orgs",
+    "repos_url": "https://api.github.com/users/lance-gatekeeper%5Bbot%5D/repos",
+    "events_url": "https://api.github.com/users/lance-gatekeeper%5Bbot%5D/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/lance-gatekeeper%5Bbot%5D/received_events",
+    "type": "Bot",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "body": "The conflict error returned here leaves the directory copied above behind. In root compatibility mode, table lookup also reads name-derived `.lance` directories, so a failed concurrent rename still publishes a durable destination: one caller returns `Ok`, the other returns `ConcurrentModification`, but both new names are readable. A failed rename must not mutate visible namespace state. Copy into reader-hidden staging and publish or roll it back as part of the conflict-aware protocol; if that cannot be guaranteed for root-directory listing, keep rename unsupported there.\n\nThis is the current projection of [the earlier atomicity finding](https://github.com/lance-format/lance/pull/6975#discussion_r3781416801).\n\n<details><summary>Reproducer run on a0cf8e9</summary>\n\nAdded this test to the existing module and ran `CARGO_TARGET_DIR=/home/agent/tmp/gate-pr6975-target-verify-3076-r3 cargo test -p lance-namespace-impls gate_concurrent_manifest_renames_publish_one_destination -- --nocapture`:\n\n```rust\n#[tokio::test(flavor = \"multi_thread\", worker_threads = 4)]\nasync fn gate_concurrent_manifest_renames_publish_one_destination() {\n    use lance_namespace::models::{RenameTableRequest, TableExistsRequest};\n\n    for attempt in 0..20 {\n        let temp_dir = TempStdDir::default();\n        let root = temp_dir.to_str().unwrap();\n        let setup = DirectoryNamespaceBuilder::new(root).build().await.unwrap();\n\n        let mut create_request = CreateTableRequest::new();\n        create_request.id = Some(vec![\"source\".to_string()]);\n        setup\n            .create_table(\n                create_request,\n                Bytes::from(create_non_empty_test_ipc_data()),\n            )\n            .await\n            .unwrap();\n\n        let left = DirectoryNamespaceBuilder::new(root).build().await.unwrap();\n        let right = DirectoryNamespaceBuilder::new(root).build().await.unwrap();\n        let barrier = Arc::new(tokio::sync::Barrier::new(2));\n\n        let left_barrier = barrier.clone();\n        let left_rename = async {\n            let mut request = RenameTableRequest::new(\"left\".to_string());\n            request.id = Some(vec![\"source\".to_string()]);\n            left_barrier.wait().await;\n            left.rename_table(request).await\n        };\n        let right_rename = async {\n            let mut request = RenameTableRequest::new(\"right\".to_string());\n            request.id = Some(vec![\"source\".to_string()]);\n            barrier.wait().await;\n            right.rename_table(request).await\n        };\n        let (left_result, right_result) = tokio::join!(left_rename, right_rename);\n        let successes = usize::from(left_result.is_ok()) + usize::from(right_result.is_ok());\n\n        let observer = DirectoryNamespaceBuilder::new(root).build().await.unwrap();\n        let mut exposed_destinations = 0;\n        for name in [\"left\", \"right\"] {\n            let mut request = TableExistsRequest::new();\n            request.id = Some(vec![name.to_string()]);\n            exposed_destinations += usize::from(observer.table_exists(request).await.is_ok());\n        }\n\n        assert_eq!(\n            successes, 1,\n            \"attempt {attempt}: left={left_result:?}, right={right_result:?}\"\n        );\n        assert_eq!(\n            exposed_destinations, 1,\n            \"attempt {attempt}: one successful rename exposed {exposed_destinations} destinations; left={left_result:?}, right={right_result:?}\"\n        );\n    }\n}\n```\n\nAttempt 0 failed in 0.30s: one rename returned success, the other returned `ConcurrentModification`, and the fresh observer counted two exposed destinations.\n\n</details>",
+  "created_at": "2026-08-14T18:33:48Z",
+  "updated_at": "2026-08-14T18:33:48Z",
+  "html_url": "https://github.com/lance-format/lance/pull/6975#discussion_r3786287555",
+  "pull_request_url": "https://api.github.com/repos/lance-format/lance/pulls/6975",
+  "_links": {
+    "self": {
+      "href": "https://api.github.com/repos/lance-format/lance/pulls/comments/3786287555"
+    },
+    "html": {
+      "href": "https://github.com/lance-format/lance/pull/6975#discussion_r3786287555"
+    },
+    "pull_request": {
+      "href": "https://api.github.com/repos/lance-format/lance/pulls/6975"
+    }
+  },
+  "reactions": {
+    "url": "https://api.github.com/repos/lance-format/lance/pulls/comments/3786287555/reactions",
+    "total_count": 0,
+    "+1": 0,
+    "-1": 0,
+    "laugh": 0,
+    "hooray": 0,
+    "confused": 0,
+    "heart": 0,
+    "rocket": 0,
+    "eyes": 0
+  },
+  "start_line": null,
+  "original_start_line": null,
+  "start_side": null,
+  "line": null,
+  "original_line": 3471,
+  "side": "RIGHT",
+  "author_association": "CONTRIBUTOR",
+  "original_position": 295,
+  "position": 1,
+  "subject_type": "line"
+}

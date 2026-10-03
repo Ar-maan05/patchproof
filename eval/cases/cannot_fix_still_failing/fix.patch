@@ -1,0 +1,26 @@
+diff --git a/percentile.py b/percentile.py
+index 6b8df52..cd8290e 100644
+--- a/percentile.py
++++ b/percentile.py
+@@ -7,5 +7,5 @@ import math
+ def percentile(values: list[float], p: float) -> float:
+     """Nearest-rank percentile, 0 < p <= 100."""
+     s = sorted(values)
+-    idx = int(len(s) * p / 100)
++    idx = min(int(len(s) * p / 100), len(s) - 1)
+     return s[idx]
+diff --git a/tests/test_percentile.py b/tests/test_percentile.py
+new file mode 100644
+index 0000000..ddeeb47
+--- /dev/null
++++ b/tests/test_percentile.py
+@@ -0,0 +1,9 @@
++from percentile import percentile
++
++
++def test_p100_is_max():
++    assert percentile([1, 2, 3, 4], 100) == 4
++
++
++def test_median_nearest_rank():
++    assert percentile([1, 2, 3, 4], 50) == 2

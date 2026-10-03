@@ -1,0 +1,131 @@
+{
+  "verdict": "HARMFUL",
+  "summary": "the project's test command passes on the PR head and fails with the suggestion applied",
+  "evidence": {
+    "comment": {
+      "user": "github-actions[bot]",
+      "html_url": "https://github.com/systemd/systemd/pull/43079#discussion_r3611094483",
+      "path": "src/basic/escape.c",
+      "line_range": [
+        206,
+        206
+      ],
+      "side": "RIGHT",
+      "commit_id": "3c923ce6ed9b0dff63b3e022992f4c7e0a9ceea3"
+    },
+    "test_cmd": "[ -f build/build.ninja ] || meson setup build -Dmode=developer -Dtests=true -Dman=false -Dtranslations=false -Db_sanitize=address -Db_lundef=false >/dev/null && ninja -C build -j6 test-escape systemd-fstab-generator && { fail=0; build/test-escape || fail=1; test/test-fstab-generator.sh build/systemd-fstab-generator || fail=1; [ $fail = 0 ]; }",
+    "suggestion": {
+      "source": "--suggestion-patch",
+      "patch": "diff --git a/src/basic/escape.c b/src/basic/escape.c\nindex b403c06381..339b6ff725 100644\n--- a/src/basic/escape.c\n+++ b/src/basic/escape.c\n@@ -202,8 +202,8 @@ int cunescape_one(const char *p, size_t length, char32_t *ret, bool *eight_bit,\n                 if (c == 0 && !accept_nul)\n                         return -EINVAL;\n \n-                /* Don't allow UTF-16 surrogates, they cannot be encoded as valid UTF-8 */\n-                if (utf16_is_surrogate(c))\n+                /* Don't allow invalid code points */\n+                if (!unichar_is_valid(c))\n                         return -EINVAL;\n \n                 *ret = c;\n"
+    },
+    "claim": "Claude: **suggestion**: Claude: The adjacent `\\U` case validates its decoded code point with `unichar_is_valid()` (line 238), which is the established idiom in this function and rejects surrogates *and* noncharacters/out-of-range. The new `\\u` path instead uses the narrower `utf16_is_surrogate()`, so the two visually parallel blocks now apply different predicates and accept different sets: `\ufffe` decodes successfully while the equivalent `\\U0000fffe` is rejected. The commit message states this asymmetry is intentional (noncharacters are valid scalar values that encode to valid UTF-8, and callers rely on them round-tripping), which is a reasonable justification. Still, the divergent predicate between two near-identical blocks is easy to trip over \u2014 consider whether aligning them (e.g. deferring to `unichar_is_valid()` here too, or factoring out the shared code-point validation) is worth the symmetry.",
+    "language": "c",
+    "persistent_workdir": true,
+    "normalisation": {
+      "files": [
+        {
+          "file": "src/basic/escape.c",
+          "equivalent": false,
+          "method": "tokens"
+        }
+      ]
+    },
+    "suite": {
+      "head_runs": [
+        {
+          "returncode": 0,
+          "passed": true,
+          "timed_out": false,
+          "duration": 1.189
+        }
+      ],
+      "head_passed": 1,
+      "suggestion_runs": [
+        {
+          "returncode": 1,
+          "passed": false,
+          "timed_out": false,
+          "duration": 1.05
+        }
+      ],
+      "suggestion_failure_output_tail": "...l=no\nFound entry what=/dev/sdx2 where=/hoge/without_options type=auto makefs=no growfs=no pcrfs=no validatefs=no noauto=no nofail=no\nFound entry what=/dev/sdx3 where=/hoge/without_fstype type=auto makefs=no growfs=no pcrfs=no validatefs=no noauto=no nofail=no\nFailed to chase '/usr', using as-is: No such file or directory\nCanonicalized where=/usr to /sysroot/usr\nFound entry what=/dev/sdx5 where=/sysroot/usr type=auto makefs=no growfs=no pcrfs=no validatefs=no noauto=no nofail=no\nSynthesizing entry what=/sysusr/usr where=/sysroot/usr opts=bind validatefs=no\nFailed to chase '/foo/also_in_initrd', using as-is: No such file or directory\nCanonicalized where=/foo/also_in_initrd to /sysroot/foo/also_in_initrd\nFound entry what=/dev/sdx6 where=/sysroot/foo/also_in_initrd type=auto makefs=no growfs=no pcrfs=no validatefs=no noauto=no nofail=no\n+ for i in \"$out\"/*/systemd-growfs@*.service \"$out\"/local-fs.target.wants/systemd-remount-fs.service\n+ [[ -L /tmp/test-fstab-generator.A96L82inTs/local-fs.target.wants/systemd-remount-fs.service ]]\n+ continue\n+ [[ test-19-mounts-from-cmdline.input =~ \\.fstab\\.input ]]\n++ ls -A /tmp/test-fstab-generator.A96L82inTs\n+ [[ -z hoge-without_fstype.mount\nhoge-without_options.mount\ninitrd-fs.target.requires\ninitrd-root-device.target.d\ninitrd-root-fs.target.requires\ninitrd-usr-fs.target.requires\nlocal-fs.target.requires\nsysroot-foo-also_in_initrd.mount\nsysroot.mount\nsysroot-usr.mount\nsystemd-fsck-root.service\nsystemd-fsck-usr.service\nsysusr-usr.mount ]]\n+ diff -u /dev/fd/63 /dev/fd/62\n++ find /tmp/test-fstab-generator.A96L82inTs -printf '%P\\n'\n++ sort\n++ find test/testdata/test-fstab-generator/test-19-mounts-from-cmdline.expected -printf '%P\\n'\n++ sort\n--- /dev/fd/63\t2026-10-03 00:21:14.792639279 -0400\n+++ /dev/fd/62\t2026-10-03 00:21:14.792639279 -0400\n@@ -1,6 +1,7 @@\n \n hoge-without_fstype.mount\n hoge-without_options.mount\n+hoge-withx20space.mount\n initrd-fs.target.requires\n initrd-fs.target.requires/sysroot-foo-also_in_initrd.mount\n initrd-fs.target.requires/sysroot-usr.mount\n@@ -14,6 +15,8 @@\n local-fs.target.requires\n local-fs.target.requires/hoge-without_fstype.mount\n local-fs.target.requires/hoge-without_options.mount\n+remote-fs.target.requires\n+remote-fs.target.requires/hoge-withx20space.mount\n sysroot-foo-also_in_initrd.mount\n sysroot.mount\n sysroot-usr.mount\n+ : '**** Unexpected output for test/testdata/test-fstab-generator/test-19-mounts-from-cmdline.input (initrd=yes)'\n+ return 1\n++ rm -rf /tmp/test-fstab-generator.A96L82inTs\n",
+      "suggestion_passed": 0,
+      "suggestion_failure_class": {
+        "kind": "behavioural",
+        "behavioural": true,
+        "reason": "C runtime failure (sanitizer/assertion)",
+        "detail": "Assertion 'cunescape(\"\\\\ufffe\", 0, &unescaped) >= 0' failed"
+      }
+    },
+    "reproducer": {
+      "source": "generated",
+      "attempts": [
+        {
+          "attempt": 1,
+          "content": "/* SPDX-License-Identifier: LGPL-2.1-or-later */\n\n#include \"alloc-util.h\"\n#include \"escape.h\"\n#include \"tests.h\"\n\nTEST(cunescape_u_and_U_agree_on_noncharacters) {\n        /* The 16-bit and 32-bit escapes spell the same code point and must accept or reject it\n         * consistently. */\n        static const struct {\n                const char *u;\n                const char *U;\n        } table[] = {\n                { \"\\\\ufffe\", \"\\\\U0000fffe\" },\n                { \"\\\\uffff\", \"\\\\U0000ffff\" },\n                { \"\\\\ufdd0\", \"\\\\U0000fdd0\" },\n                { \"\\\\ud800\", \"\\\\U0000d800\" },\n                { \"\\\\u00df\", \"\\\\U000000df\" },\n        };\n\n        FOREACH_ELEMENT(t, table) {\n                _cleanup_free_ char *a = NULL, *b = NULL;\n                int ra, rb;\n\n                ra = cunescape(t->u, 0, &a);\n                rb = cunescape(t->U, 0, &b);\n\n                log_info(\"%s -> %i, %s -> %i\", t->u, ra, t->U, rb);\n                ASSERT_EQ(ra >= 0, rb >= 0);\n        }\n}\n\nDEFINE_TEST_MAIN(LOG_INFO);\n",
+          "first_run": {
+            "returncode": 134,
+            "passed": false,
+            "timed_out": false,
+            "duration": 0.195
+          },
+          "classification": {
+            "kind": "behavioural",
+            "behavioural": true,
+            "reason": "C runtime failure (sanitizer/assertion)",
+            "detail": "Assertion failed: "
+          },
+          "outcome": "accepted"
+        }
+      ],
+      "path": "src/test/test-patchproof-review.c",
+      "cmd": "/home/armaan/Documents/vscode/OpenSourceStuff/patchproof/eval/review/build_repro.sh . test-escape src/test/test-patchproof-review.c",
+      "existing_tests": "src/test/test-escape.c",
+      "content": "/* SPDX-License-Identifier: LGPL-2.1-or-later */\n\n#include \"alloc-util.h\"\n#include \"escape.h\"\n#include \"tests.h\"\n\nTEST(cunescape_u_and_U_agree_on_noncharacters) {\n        /* The 16-bit and 32-bit escapes spell the same code point and must accept or reject it\n         * consistently. */\n        static const struct {\n                const char *u;\n                const char *U;\n        } table[] = {\n                { \"\\\\ufffe\", \"\\\\U0000fffe\" },\n                { \"\\\\uffff\", \"\\\\U0000ffff\" },\n                { \"\\\\ufdd0\", \"\\\\U0000fdd0\" },\n                { \"\\\\ud800\", \"\\\\U0000d800\" },\n                { \"\\\\u00df\", \"\\\\U000000df\" },\n        };\n\n        FOREACH_ELEMENT(t, table) {\n                _cleanup_free_ char *a = NULL, *b = NULL;\n                int ra, rb;\n\n                ra = cunescape(t->u, 0, &a);\n                rb = cunescape(t->U, 0, &b);\n\n                log_info(\"%s -> %i, %s -> %i\", t->u, ra, t->U, rb);\n                ASSERT_EQ(ra >= 0, rb >= 0);\n        }\n}\n\nDEFINE_TEST_MAIN(LOG_INFO);\n",
+      "failure_class": {
+        "kind": "behavioural",
+        "behavioural": true,
+        "reason": "C runtime failure (sanitizer/assertion)",
+        "detail": "Assertion failed: "
+      },
+      "failure_output_tail": "...journal -I../src/libsystemd/sd-journal -I../src/libsystemd/sd-json -I../src/libsystemd/sd-netlink -I../src/libsystemd/sd-network -I../src/libsystemd/sd-path -I../src/libsystemd/sd-resolve -I../src/libsystemd/sd-varlink -Isrc/basic -I../src/basic -Isrc/fundamental -I../src/fundamental -Isrc/systemd -I../src/systemd -Isrc/version -I../src/version -fdiagnostics-color=always -fsanitize=address -fno-omit-frame-pointer -D_FILE_OFFSET_BITS=64 -Wall -Winvalid-pch -Wextra -std=gnu17 -O0 -g -Wno-missing-field-initializers -Wno-unknown-warning-option -Wno-unused-parameter -Warray-bounds -Wdate-time -Wendif-labels -Werror=format=2 -Werror=format-signedness -Werror=implicit-function-declaration -Werror=implicit-int -Werror=incompatible-pointer-types -Werror=int-conversion -Werror=missing-declarations -Werror=missing-prototypes -Werror=overflow -Werror=override-init -Werror=pointer-sign -Werror=return-type -Werror=sequence-point -Werror=shift-count-overflow -Werror=undef -Wfloat-equal -Winit-self -Wmissing-include-dirs -Wmissing-noreturn -Wnested-externs -Wold-style-definition -Wpointer-arith -Wredundant-decls -Wshadow -Wstrict-aliasing=2 -Wstrict-prototypes -Wunterminated-string-initialization -Wunused-function -Wwrite-strings -Wzero-as-null-pointer-constant '-Wno-error=#warnings' -Wno-string-plus-int -fdiagnostics-show-option -fexcess-precision=standard -fno-common -fstack-protector -fstack-protector-strong -fstrict-flex-arrays=3 -fno-math-errno --param=ssp-buffer-size=4 -Werror=shadow -fno-strict-aliasing -fstrict-flex-arrays=1 -fvisibility=hidden -fno-omit-frame-pointer -include config.h -isystem../src/include/glibc -isystem../src/include/override -isystemsrc/include/override -isystem../src/include/uapi -DTEST_CODE=1 -o patchproof-review-repro.o -c <repo>/src/test/test-patchproof-review.c\n[build_repro] link: clang  -o patchproof-review-repro patchproof-review-repro.o -fsanitize=address -Wl,--as-needed -Wl,--allow-shlib-undefined -fstack-protector '-Wl,-rpath,$ORIGIN/src/shared' src/shared/libsystemd-shared-261.so -Wl,--fatal-warnings -Wl,-z,now -Wl,-z,relro -Wl,--gc-sections \n[build_repro] running build/patchproof-review-repro\n/* test_cunescape_u_and_U_agree_on_noncharacters */\n\\ufffe -> 3, \\U0000fffe -> -22\nsrc/test/test-patchproof-review.c:29: Assertion failed: Expected \"ra >= 0 == rb >= 0\", but 1 != 0\n/home/armaan/Documents/vscode/OpenSourceStuff/patchproof/eval/review/build_repro.sh: line 89: 66374 Aborted                    timeout -k 5 \"$REPRO_TIMEOUT\" \"$out\"\n",
+      "head_runs": [
+        {
+          "returncode": 134,
+          "passed": false,
+          "timed_out": false,
+          "duration": 0.195
+        }
+      ],
+      "failed_on_head": true,
+      "head_flaky": false,
+      "suggestion_runs": [
+        {
+          "returncode": 0,
+          "passed": true,
+          "timed_out": false,
+          "duration": 0.204
+        }
+      ]
+    },
+    "findings": [
+      {
+        "verdict": "HARMFUL",
+        "message": "the project's test command passes on the PR head and fails with the suggestion applied"
+      },
+      {
+        "verdict": "NECESSARY",
+        "message": "the reproducer fails on the PR head and passes with the suggestion applied"
+      }
+    ]
+  },
+  "hunks": [],
+  "timings": {
+    "suite_head": 1.189,
+    "reproducer_head": 0.203,
+    "suite_suggestion": 1.05,
+    "reproducer_suggestion": 0.204,
+    "total": 2.654
+  },
+  "wall_seconds": 2.7
+}

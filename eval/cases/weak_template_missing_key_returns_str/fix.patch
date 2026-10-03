@@ -1,0 +1,26 @@
+diff --git a/templating.py b/templating.py
+index a2d055e..089a12b 100644
+--- a/templating.py
++++ b/templating.py
+@@ -2,4 +2,8 @@
+ 
+ 
+ def render(template: str, ctx: dict) -> str:
+-    return template.format(**ctx)
++    class _Keep(dict):
++        def __missing__(self, key):
++            return "{" + key + "}"
++
++    return template.format_map(_Keep(ctx))
+diff --git a/tests/test_templating.py b/tests/test_templating.py
+new file mode 100644
+index 0000000..dee4f50
+--- /dev/null
++++ b/tests/test_templating.py
+@@ -0,0 +1,6 @@
++from templating import render
++
++
++def test_missing_key_returns_string():
++    out = render("Hello {name}, you are {age}", {"name": "Ada"})
++    assert isinstance(out, str)

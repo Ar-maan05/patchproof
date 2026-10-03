@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_backoff.py'
+expected_verdict = "PROVEN"
+category = "real_fix"
+source = "synthetic"
+notes = '''backoff_delay() applied the cap to the base instead of the result and used 2**attempt instead of 2**(attempt-1), so the first retry waited twice as long as documented and delays never capped. Fix caps the product and bounds the exponent (huge attempt counts previously overflowed float conversion). Tests pin exact values, the cap, and a very large attempt.'''

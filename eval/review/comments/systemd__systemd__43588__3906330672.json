@@ -1,0 +1,69 @@
+{
+  "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/3906330672",
+  "pull_request_review_id": 5080692707,
+  "id": 3906330672,
+  "node_id": "PRRC_kwDOAfWbYc7o1eAw",
+  "diff_hunk": "@@ -68,14 +68,52 @@ static usec_t mdns_maintenance_next_time(usec_t until, uint32_t ttl, DnsRecordTT\n         assert(percent > 0);\n         assert(percent <= 100);\n \n-        return usec_sub_unsigned(until, (100 - percent) * ttl * USEC_PER_SEC / 100);\n+        /* Cast before multiplying: 'ttl' is a 32-bit value taken directly off the network, and\n+         * (100 - percent) * ttl is evaluated in 32-bit unsigned arithmetic, which wraps for TTLs\n+         * upwards of 2^32/20 s. */\n+        return usec_sub_unsigned(until, (usec_t) (100 - percent) * ttl * USEC_PER_SEC / 100);\n }\n \n /* RFC 6762 section 5.2\n  * A random variation of 2% of the record TTL should\n  * be added to maintenance queries. */\n static usec_t mdns_maintenance_jitter(uint32_t ttl) {\n-        return random_u64_range(2 * ttl * USEC_PER_SEC / 100);\n+        /* Same 32-bit truncation concern as in mdns_maintenance_next_time(), and note that\n+         * random_u64_range(0) returns a value from the full 64-bit range rather than 0. */\n+        usec_t range = 2 * (usec_t) ttl * USEC_PER_SEC / 100;\n+        if (range == 0)\n+                return 0;\n+\n+        return random_u64_range(range);\n+}\n+\n+/* Returns the time the maintenance event for 'service' is to be armed at, and advances its TTL state to\n+ * match. Maintenance queries are issued at 80% of the record's lifetime and at 5% increments from there\n+ * up to 100%. RFC 6762 section 5.2. Points that have already elapsed are skipped: 'until' is capped by\n+ * the cache (see calculate_until_valid()) while the record's TTL is not, so even a freshly received\n+ * record may have its 80% point in the past, and arming the source there would only make it fire\n+ * immediately and walk the remaining increments in one burst. */\n+static usec_t mdns_maintenance_schedule(DnssdDiscoveredService *service, usec_t usec) {\n+        assert(service);\n+\n+        usec_t next_time = 0;\n+        while (service->rr_ttl_state >= DNS_RECORD_TTL_STATE_80_PERCENT &&\n+               service->rr_ttl_state < _DNS_RECORD_TTL_STATE_MAX) {\n+                next_time = mdns_maintenance_next_time(service->until, service->rr->ttl, service->rr_ttl_state);\n+                if (next_time >= usec)\n+                        break;\n+\n+                service->rr_ttl_state++;\n+        }\n+\n+        if (next_time < usec) {\n+                /* If next_time is still in the past, the record has already expired. Just schedule a\n+                 * 100% maintenance query. */\n+                next_time = usec_add(usec, USEC_PER_SEC);\n+                service->rr_ttl_state = DNS_RECORD_TTL_STATE_100_PERCENT;\n+        }\n+\n+        return usec_add(next_time, mdns_maintenance_jitter(service->rr->ttl));",
+  "path": "src/resolve/resolved-dns-browse-services.c",
+  "commit_id": "23de6578ac41b8a1575dea3038b829cf2bf4de16",
+  "original_commit_id": "23de6578ac41b8a1575dea3038b829cf2bf4de16",
+  "user": {
+    "login": "github-actions[bot]",
+    "id": 41898282,
+    "node_id": "MDM6Qm90NDE4OTgyODI=",
+    "avatar_url": "https://avatars.githubusercontent.com/in/15368?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/github-actions%5Bbot%5D",
+    "html_url": "https://github.com/apps/github-actions",
+    "followers_url": "https://api.github.com/users/github-actions%5Bbot%5D/followers",
+    "following_url": "https://api.github.com/users/github-actions%5Bbot%5D/following{/other_user}",
+    "gists_url": "https://api.github.com/users/github-actions%5Bbot%5D/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/github-actions%5Bbot%5D/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/github-actions%5Bbot%5D/subscriptions",
+    "organizations_url": "https://api.github.com/users/github-actions%5Bbot%5D/orgs",
+    "repos_url": "https://api.github.com/users/github-actions%5Bbot%5D/repos",
+    "events_url": "https://api.github.com/users/github-actions%5Bbot%5D/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/github-actions%5Bbot%5D/received_events",
+    "type": "Bot",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "body": "Claude: **must-fix**: The percentage offsets and the jitter are derived from `service->rr->ttl` (the raw, unclamped network TTL) but anchored at `service->until`, which the cache clamps to `CACHE_TTL_MAX_USEC` (2 h) past the caching timestamp. The two quantities are not commensurate, and the result is an event armed *after* the cache entry has already expired.\n\nOnce `(100 - percent) * ttl / 100` exceeds the available window `until - usec`, the loop skips 80/85/90/95% and settles on `DNS_RECORD_TTL_STATE_100_PERCENT`, where the offset is zero and `next_time == until` exactly. Line 116 then adds up to 2% of the raw TTL on top, so the source fires strictly after the record expired. `mdns_maintenance_query()` treats the 100% state as \"do not query, just revisit the cache\" (line 151), and the revisit prunes the now-expired entry, so the service is dropped without a single refresh query ever being sent \u2014 the same \"never requeried, drops off the browse list\" symptom the commit message sets out to fix, reached through the cache cap instead of the 32-bit wrap.\n\nThis is not only an exotic-TTL case. It triggers whenever 5% of the TTL exceeds the remaining window: for advertised TTLs above ~144000 s (where `until - usec` is pinned at 2 h), and more routinely for any `dns_add_new_service()` on a record already in the last 5% of its cached lifetime \u2014 e.g. a browser subscribing 4400 s into a 4500 s PTR record, where 5% = 225 s > 100 s remaining, so the state jumps to 100% and up to 90 s of jitter arms the event past expiry.\n\nThe `next_time = usec_add(usec, USEC_PER_SEC)` fallback at line 112 is likewise meant to fire promptly, but line 116 adds the same jitter to it, so \"in one second\" becomes up to 2% of an arbitrary 32-bit TTL later.\n\nDeriving the increments and the jitter from the effective remaining lifetime (`service->until - usec`) rather than the raw TTL would make the quantities commensurate; at minimum, clamp the jitter to the window actually left (`MIN(jitter, until - next_time)`) and skip it entirely on the fallback branch.",
+  "created_at": "2026-09-01T16:44:01Z",
+  "updated_at": "2026-09-01T16:44:01Z",
+  "html_url": "https://github.com/systemd/systemd/pull/43588#discussion_r3906330672",
+  "pull_request_url": "https://api.github.com/repos/systemd/systemd/pulls/43588",
+  "_links": {
+    "self": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/comments/3906330672"
+    },
+    "html": {
+      "href": "https://github.com/systemd/systemd/pull/43588#discussion_r3906330672"
+    },
+    "pull_request": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/43588"
+    }
+  },
+  "reactions": {
+    "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/3906330672/reactions",
+    "total_count": 0,
+    "+1": 0,
+    "-1": 0,
+    "laugh": 0,
+    "hooray": 0,
+    "confused": 0,
+    "heart": 0,
+    "rocket": 0,
+    "eyes": 0
+  },
+  "start_line": null,
+  "original_start_line": 102,
+  "start_side": "RIGHT",
+  "line": null,
+  "original_line": 116,
+  "side": "RIGHT",
+  "author_association": "NONE",
+  "original_position": 51,
+  "position": 1,
+  "subject_type": "line"
+}

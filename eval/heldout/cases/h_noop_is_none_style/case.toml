@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_ttl.py'
+expected_verdict = "NO_OP"
+category = "noop"
+source = "synthetic (style-only 'fix')"
+notes = '''The patch rewrites `ttl == None` as `ttl is None`, which is only a lint fix: for the int/None inputs the function receives, behaviour is identical and the test passes on base.'''

@@ -1,0 +1,21 @@
+diff --git a/cards.py b/cards.py
+index 0601d45..0b2f014 100644
+--- a/cards.py
++++ b/cards.py
+@@ -2,4 +2,4 @@
+ 
+ 
+ def mask_card(number: str) -> str:
+-    return "*" * len(number)
++    return "*" * (len(number) - 4) + number[-4:]
+diff --git a/tests/test_cards.py b/tests/test_cards.py
+new file mode 100644
+index 0000000..9d9a3ce
+--- /dev/null
++++ b/tests/test_cards.py
+@@ -0,0 +1,5 @@
++from cards import mask_card
++
++
++def test_last_four_visible():
++    assert mask_card("4111111111111111") == "************1111"

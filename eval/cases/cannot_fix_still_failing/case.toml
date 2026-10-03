@@ -1,0 +1,6 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_percentile.py'
+expected_verdict = "CANNOT_REPRODUCE"
+category = "still_failing"
+source = "synthetic"
+repro_mode = "head_fails"
+notes = '''percentile() raised IndexError at p=100 and also used the wrong rank formula. The patch clamps the index (fixing the crash) but not the rank formula, so test_median still fails on head. The test fails on base for a behavioural reason but also fails with the patch applied: the patch does not fix what the test checks.'''

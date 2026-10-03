@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_semver.py'
+expected_verdict = "WEAK_TEST"
+category = "wrong_fix"
+source = "synthetic (overfitting-style patch)"
+notes = '''HEADLINE. compare() used string ordering ('1.10.0' < '1.9.0'). The patch compares numeric tuples, which fixes the reported case, but it strips the pre-release suffix, so '1.0.0-rc.1' == '1.0.0' (should be older). The single regression assertion passes on head; hidden_test.py shows the semantic error that the shipped test cannot see.'''

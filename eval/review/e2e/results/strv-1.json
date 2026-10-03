@@ -1,0 +1,122 @@
+{
+  "verdict": "NECESSARY",
+  "summary": "the reproducer fails on the PR head and passes with the suggestion applied",
+  "evidence": {
+    "comment": {
+      "user": "github-actions[bot]",
+      "html_url": "https://github.com/systemd/systemd/pull/43078#discussion_r3610928091",
+      "path": "src/basic/strv.c",
+      "line_range": [
+        1275,
+        1275
+      ],
+      "side": "RIGHT",
+      "commit_id": "289514c284e37da06c334a3ab96af155504d481a"
+    },
+    "test_cmd": "[ -f build/build.ninja ] || meson setup build -Dmode=developer -Dtests=true -Dman=false -Dtranslations=false -Db_sanitize=address -Db_lundef=false >/dev/null && ninja -C build -j6 test-strv && { fail=0; build/test-strv || fail=1; [ $fail = 0 ]; }",
+    "suggestion": {
+      "source": "--suggestion-patch",
+      "patch": "diff --git a/src/basic/strv.c b/src/basic/strv.c\nindex f1c6ebf1fe..3dc35cdbf7 100644\n--- a/src/basic/strv.c\n+++ b/src/basic/strv.c\n@@ -1249,7 +1249,8 @@ int strv_rebreak_lines(char **l, size_t width, char ***ret) {\n                         }\n \n                         int cw = utf8_char_console_width(p);\n-                        if (cw < 0) {\n+                        bool invalid = cw < 0;\n+                        if (invalid) {\n                                 log_debug_errno(cw, \"Comment to line break contains invalid UTF-8, ignoring.\");\n                                 cw = 1;\n                         }\n@@ -1272,7 +1273,7 @@ int strv_rebreak_lines(char **l, size_t width, char ***ret) {\n                                 w = cw;\n                         }\n \n-                        p = cw < 0 ? p + 1 : utf8_next_char(p);\n+                        p = invalid ? p + 1 : utf8_next_char(p);\n                 }\n \n                 /* Process rest of the line */\n"
+    },
+    "claim": "Claude: **must-fix**: This fix does not actually prevent the out-of-bounds read it targets: the `cw < 0` guard here is always false, so the `p + 1` branch is dead code and the advance always falls through to `utf8_next_char(p)` \u2014 the exact blind skip the PR sets out to avoid.\n\nControl flow in the loop body:\n\n```c\nint cw = utf8_char_console_width(p);\nif (cw < 0) {\n        log_debug_errno(cw, \"Comment to line break contains invalid UTF-8, ignoring.\");\n        cw = 1;          /* cw is unconditionally clamped to 1 here */\n}\n...\np = cw < 0 ? p + 1 : utf8_next_char(p);   /* cw is now guaranteed >= 1 */\n```\n\nBy the time this line runs, `cw` is never negative (valid widths are 1/2/8, and the invalid case was reset to 1). For the added test input `\"foo\\xF0\"` (bytes `66 6F 6F F0 00`), when `p` points at `0xF0`, `utf8_char_console_width()` returns negative, `cw` becomes 1, and `utf8_next_char(p)` advances by `utf8_skip_data[0xF0] == 4`, stepping over the NUL; the next `*p != 0` test reads past the end of the allocation.\n\nThe new regression tests only assert the return code and string equality \u2014 the over-read is silent and would only trip under ASan/valgrind, so they do not actually catch the regression.\n\nCapture the invalid-UTF-8 condition before `cw` is clamped, e.g.:\n\n```c\nint cw = utf8_char_console_width(p);\nbool invalid = cw < 0;\nif (invalid) {\n        log_debug_errno(cw, \"Comment to line break contains invalid UTF-8, ignoring.\");\n        cw = 1;\n}\n...\np = invalid ? p + 1 : utf8_next_char(p);\n```",
+    "language": "c",
+    "persistent_workdir": true,
+    "normalisation": {
+      "files": [
+        {
+          "file": "src/basic/strv.c",
+          "equivalent": false,
+          "method": "tokens"
+        }
+      ]
+    },
+    "suite": {
+      "head_runs": [
+        {
+          "returncode": 1,
+          "passed": false,
+          "timed_out": false,
+          "duration": 0.744
+        }
+      ],
+      "head_failure_output_tail": "==65596==ERROR: AddressSanitizer: global-buffer-overflow on address 0x00000054f1c7 at pc 0x7f2d9b810f6f bp 0x7ffdffee3cf0 sp 0x7ffdffee3ce8\nREAD of size 1 at 0x00000054f1c7 thread T0\n    #0 0x7f2d9b810f6e  (<repo>/build/src/shared/libsystemd-shared-261.so+0x644f6e) (BuildId: 03b11284c2f644c5fbdc32d140179abf6813cc2f)\n    #1 0x000000528d39  (<repo>/build/test-strv+0x528d39) (BuildId: d21d73f3b42b1ad9f09c19ddf497b91da4848096)\n    #2 0x7f2d9b69b549  (<repo>/build/src/shared/libsystemd-shared-261.so+0x4cf549) (BuildId: 03b11284c2f644c5fbdc32d140179abf6813cc2f)\n    #3 0x00000052b9f1  (<repo>/build/test-strv+0x52b9f1) (BuildId: d21d73f3b42b1ad9f09c19ddf497b91da4848096)\n    #4 0x7f2d9ae5a680  (/lib64/libc.so.6+0x3680) (BuildId: 5bd941be836f538fe5e10eff508f7f5dd94905a6)\n    #5 0x7f2d9ae5a797  (/lib64/libc.so.6+0x3797) (BuildId: 5bd941be836f538fe5e10eff508f7f5dd94905a6)\n    #6 0x00000042c6c4  (<repo>/build/test-strv+0x42c6c4) (BuildId: d21d73f3b42b1ad9f09c19ddf497b91da4848096)\n\n0x00000054f1c7 is located 25 bytes before global variable '.str.686' defined in '../src/test/test-strv.c' (0x00000054f1e0) of size 54\n  '.str.686' is ascii string 'strv_rebreak_lines(STRV_MAKE(\"foo\\xF0\"), 10, &l) >= 0'\n0x00000054f1c7 is located 2 bytes after global variable '.str.685' defined in '../src/test/test-strv.c' (0x00000054f1c0) of size 5\nSUMMARY: AddressSanitizer: global-buffer-overflow (<repo>/build/src/shared/libsystemd-shared-261.so+0x644f6e) (BuildId: 03b11284c2f644c5fbdc32d140179abf6813cc2f) \nShadow bytes around the buggy address:\n  0x00000054ef00: 00 00 00 00 00 00 06 f9 f9 f9 f9 f9 05 f9 f9 f9\n  0x00000054ef80: 04 f9 f9 f9 04 f9 f9 f9 00 00 00 00 00 00 f9 f9\n  0x00000054f000: f9 f9 f9 f9 00 00 00 00 00 00 00 03 f9 f9 f9 f9\n  0x00000054f080: 00 00 00 00 00 05 f9 f9 f9 f9 f9 f9 00 00 00 00\n  0x00000054f100: 00 00 00 00 00 00 00 03 f9 f9 f9 f9 00 00 00 00\n=>0x00000054f180: 02 f9 f9 f9 f9 f9 f9 f9[05]f9 f9 f9 00 00 00 00\n  0x00000054f200: 00 00 06 f9 f9 f9 f9 f9 00 00 00 00 04 f9 f9 f9\n  0x00000054f280: f9 f9 f9 f9 05 f9 f9 f9 00 00 00 00 00 00 06 f9\n  0x00000054f300: f9 f9 f9 f9 00 00 00 00 04 f9 f9 f9 f9 f9 f9 f9\n  0x00000054f380: 05 f9 f9 f9 00 00 00 00 00 f9 f9 f9 f9 f9 f9 f9\n  0x00000054f400: 00 00 00 02 f9 f9 f9 f9 06 f9 f9 f9 03 f9 f9 f9\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Sta...",
+      "head_passed": 0,
+      "suggestion_runs": [
+        {
+          "returncode": 0,
+          "passed": true,
+          "timed_out": false,
+          "duration": 0.607
+        }
+      ],
+      "suggestion_passed": 1,
+      "harmful_check": "not assessable: the test command does not pass on head"
+    },
+    "reproducer": {
+      "source": "generated",
+      "attempts": [
+        {
+          "attempt": 1,
+          "content": "/* SPDX-License-Identifier: LGPL-2.1-or-later */\n\n#include <string.h>\n\n#include \"alloc-util.h\"\n#include \"strv.h\"\n#include \"tests.h\"\n\nTEST(rebreak_lines_truncated_utf8_lead_byte) {\n        /* A truncated multi-byte lead byte right before the terminating NUL must not make the scan step\n         * past the NUL. Use an exactly sized heap buffer so that ASan/valgrind notice an over-read. */\n        _cleanup_free_ char *s = memdup(\"foo\\xF0\", 5);\n        ASSERT_NOT_NULL(s);\n\n        char *l[] = { s, NULL };\n        _cleanup_strv_free_ char **broken = NULL;\n\n        ASSERT_OK(strv_rebreak_lines(l, 80, &broken));\n        ASSERT_NOT_NULL(broken);\n        ASSERT_EQ(strv_length(broken), 1u);\n        ASSERT_EQ(strlen(broken[0]), 4u);\n        ASSERT_EQ(memcmp(broken[0], \"foo\\xF0\", 5), 0);\n}\n\nDEFINE_TEST_MAIN(LOG_DEBUG);\n",
+          "first_run": {
+            "returncode": 1,
+            "passed": false,
+            "timed_out": false,
+            "duration": 0.211
+          },
+          "classification": {
+            "kind": "behavioural",
+            "behavioural": true,
+            "reason": "C runtime failure (sanitizer/assertion)",
+            "detail": "ERROR: AddressSanitizer"
+          },
+          "outcome": "accepted"
+        }
+      ],
+      "path": "src/test/test-patchproof-review.c",
+      "cmd": "/home/armaan/Documents/vscode/OpenSourceStuff/patchproof/eval/review/build_repro.sh . test-strv src/test/test-patchproof-review.c",
+      "existing_tests": "src/test/test-strv.c",
+      "content": "/* SPDX-License-Identifier: LGPL-2.1-or-later */\n\n#include <string.h>\n\n#include \"alloc-util.h\"\n#include \"strv.h\"\n#include \"tests.h\"\n\nTEST(rebreak_lines_truncated_utf8_lead_byte) {\n        /* A truncated multi-byte lead byte right before the terminating NUL must not make the scan step\n         * past the NUL. Use an exactly sized heap buffer so that ASan/valgrind notice an over-read. */\n        _cleanup_free_ char *s = memdup(\"foo\\xF0\", 5);\n        ASSERT_NOT_NULL(s);\n\n        char *l[] = { s, NULL };\n        _cleanup_strv_free_ char **broken = NULL;\n\n        ASSERT_OK(strv_rebreak_lines(l, 80, &broken));\n        ASSERT_NOT_NULL(broken);\n        ASSERT_EQ(strv_length(broken), 1u);\n        ASSERT_EQ(strlen(broken[0]), 4u);\n        ASSERT_EQ(memcmp(broken[0], \"foo\\xF0\", 5), 0);\n}\n\nDEFINE_TEST_MAIN(LOG_DEBUG);\n",
+      "failure_class": {
+        "kind": "behavioural",
+        "behavioural": true,
+        "reason": "C runtime failure (sanitizer/assertion)",
+        "detail": "ERROR: AddressSanitizer"
+      },
+      "failure_output_tail": "==65609==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x7b2af39e0017 at pc 0x7f0af4f54f6f bp 0x7ffed7600410 sp 0x7ffed7600408\nREAD of size 1 at 0x7b2af39e0017 thread T0\n    #0 0x7f0af4f54f6e  (<repo>/build/src/shared/libsystemd-shared-261.so+0x644f6e) (BuildId: 03b11284c2f644c5fbdc32d140179abf6813cc2f)\n    #1 0x00000050aaeb  (<repo>/build/patchproof-review-repro+0x50aaeb) (BuildId: a348f29aaba217292c1d767c0b98eded22accf20)\n    #2 0x7f0af4ddf549  (<repo>/build/src/shared/libsystemd-shared-261.so+0x4cf549) (BuildId: 03b11284c2f644c5fbdc32d140179abf6813cc2f)\n    #3 0x00000050b3f1  (<repo>/build/patchproof-review-repro+0x50b3f1) (BuildId: a348f29aaba217292c1d767c0b98eded22accf20)\n    #4 0x7f0af459e680  (/lib64/libc.so.6+0x3680) (BuildId: 5bd941be836f538fe5e10eff508f7f5dd94905a6)\n    #5 0x7f0af459e797  (/lib64/libc.so.6+0x3797) (BuildId: 5bd941be836f538fe5e10eff508f7f5dd94905a6)\n    #6 0x00000042c3f4  (<repo>/build/patchproof-review-repro+0x42c3f4) (BuildId: a348f29aaba217292c1d767c0b98eded22accf20)\n\n0x7b2af39e0017 is located 2 bytes after 5-byte region [0x7b2af39e0010,0x7b2af39e0015)\nallocated by thread T0 here:\n    #0 0x0000004d0378  (<repo>/build/patchproof-review-repro+0x4d0378) (BuildId: a348f29aaba217292c1d767c0b98eded22accf20)\n    #1 0x7f0af4de8024  (<repo>/build/src/shared/libsystemd-shared-261.so+0x4d8024) (BuildId: 03b11284c2f644c5fbdc32d140179abf6813cc2f)\n    #2 0x00000050aa19  (<repo>/build/patchproof-review-repro+0x50aa19) (BuildId: a348f29aaba217292c1d767c0b98eded22accf20)\n    #3 0x7f0af4ddf549  (<repo>/build/src/shared/libsystemd-shared-261.so+0x4cf549) (BuildId: 03b11284c2f644c5fbdc32d140179abf6813cc2f)\n    #4 0x00000050b3f1  (<repo>/build/patchproof-review-repro+0x50b3f1) (BuildId: a348f29aaba217292c1d767c0b98eded22accf20)\n    #5 0x7f0af459e680  (/lib64/libc.so.6+0x3680) (BuildId: 5bd941be836f538fe5e10eff508f7f5dd94905a6)\n    #6 0x7f0af459e797  (/lib64/libc.so.6+0x3797) (BuildId: 5bd941be836f538fe5e10eff508f7f5dd94905a6)\n    #7 0x00000042c3f4  (<repo>/build/patchproof-review-repro+0x42c3f4) (BuildId: a348f29aaba217292c1d767c0b98eded22accf20)\n\nSUMMARY: AddressSanitizer: heap-buffer-overflow (<repo>/build/src/shared/libsystemd-shared-261.so+0x644f6e) (BuildId: 03b11284c2f644c5fbdc32d140179abf6813cc2f) \nShadow bytes around the buggy address:\n  0x7b2af39dfd80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x7b2af39dfe00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x7b2af39dfe80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00...",
+      "head_runs": [
+        {
+          "returncode": 1,
+          "passed": false,
+          "timed_out": false,
+          "duration": 0.211
+        }
+      ],
+      "failed_on_head": true,
+      "head_flaky": false,
+      "suggestion_runs": [
+        {
+          "returncode": 0,
+          "passed": true,
+          "timed_out": false,
+          "duration": 0.207
+        }
+      ]
+    },
+    "findings": [
+      {
+        "verdict": "NECESSARY",
+        "message": "the reproducer fails on the PR head and passes with the suggestion applied"
+      }
+    ]
+  },
+  "hunks": [],
+  "timings": {
+    "suite_head": 0.744,
+    "reproducer_head": 0.222,
+    "suite_suggestion": 0.607,
+    "reproducer_suggestion": 0.207,
+    "total": 1.789
+  },
+  "wall_seconds": 1.9
+}

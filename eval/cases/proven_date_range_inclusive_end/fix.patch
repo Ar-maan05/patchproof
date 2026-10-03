@@ -1,0 +1,53 @@
+diff --git a/period.py b/period.py
+index bd03a99..93d2de4 100644
+--- a/period.py
++++ b/period.py
+@@ -8,7 +8,7 @@ def in_period(day: date, start: date, end: date) -> bool:
+     """True if `day` falls in the billing period [start, end], both inclusive."""
+     if end < start:
+         raise ValueError("period ends before it starts")
+-    return start <= day < end
++    return start <= day <= end
+ 
+ 
+ def days_in_period(start: date, end: date) -> int:
+diff --git a/tests/test_period.py b/tests/test_period.py
+new file mode 100644
+index 0000000..db4641d
+--- /dev/null
++++ b/tests/test_period.py
+@@ -0,0 +1,34 @@
++from datetime import date
++
++import pytest
++
++from period import days_in_period, in_period
++
++START = date(2026, 3, 1)
++END = date(2026, 3, 31)
++
++
++def test_start_is_inside():
++    assert in_period(START, START, END)
++
++
++def test_end_is_inside():
++    assert in_period(END, START, END)
++
++
++def test_outside_days():
++    assert not in_period(date(2026, 2, 28), START, END)
++    assert not in_period(date(2026, 4, 1), START, END)
++
++
++def test_single_day_period():
++    assert in_period(START, START, START)
++
++
++def test_reversed_period_rejected():
++    with pytest.raises(ValueError):
++        in_period(START, END, START)
++
++
++def test_days_in_period():
++    assert days_in_period(START, END) == 31

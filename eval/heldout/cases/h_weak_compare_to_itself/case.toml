@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_keys.py'
+expected_verdict = "WEAK_TEST"
+category = "weak_test"
+source = "synthetic"
+notes = '''Style: comparing the function to itself (`f(x) == f(x)`), true for any deterministic function. canonical_key() raised TypeError for bytes input; the fix decodes it. The test never states what the key should be, so str(bytes) (mutant.patch) passes.'''

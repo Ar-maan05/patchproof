@@ -1,0 +1,15 @@
+diff --git a/src/basic/strv.c b/src/basic/strv.c
+index 3dc35cdbf7..4cd6912e08 100644
+--- a/src/basic/strv.c
++++ b/src/basic/strv.c
+@@ -1271,6 +1271,10 @@ int strv_rebreak_lines(char **l, size_t width, char ***ret) {
+                                 p = start = whitespace_end;
+                                 whitespace_begin = whitespace_end = NULL;
+                                 w = cw;
++
++                                /* p was repointed to whitespace_end, so the validity we
++                                 * determined above no longer applies to it. */
++                                invalid = utf8_char_console_width(p) < 0;
+                         }
+ 
+                         p = invalid ? p + 1 : utf8_next_char(p);

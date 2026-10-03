@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_names.py'
+expected_verdict = "WEAK_TEST"
+category = "weak_test"
+source = "synthetic"
+notes = '''Style: `assert result` truthiness. display_name() raised KeyError when a user had no last name. The fix joins the parts present; the test only checks the result is truthy, so returning any constant string passes (mutant.patch).'''

@@ -1,0 +1,41 @@
+[project]
+name = "patchproof"
+version = "0.1.0"
+description = "Is this review suggestion actually necessary? Evidence-backed verdicts for review comments and bug-fix patches."
+readme = "README.md"
+license = "MIT"
+authors = [
+    { name = "Armaan Sandhu", email = "armaan.sandhu0504@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "coverage>=7.6",
+    "rich>=13.7",
+]
+
+[project.scripts]
+patchproof = "patchproof.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.11.24,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.8",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+extend-exclude = ["eval"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]

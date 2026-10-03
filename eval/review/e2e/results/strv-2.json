@@ -1,0 +1,120 @@
+{
+  "verdict": "NECESSARY",
+  "summary": "the reproducer fails on the PR head and passes with the suggestion applied",
+  "evidence": {
+    "comment": {
+      "user": "github-actions[bot]",
+      "html_url": "https://github.com/systemd/systemd/pull/43078#discussion_r3610971331",
+      "path": "src/basic/strv.c",
+      "line_range": [
+        1276,
+        1276
+      ],
+      "side": "RIGHT",
+      "commit_id": "d1ada665733cebd3fda7a6097ffd13f048bd49c4"
+    },
+    "test_cmd": "[ -f build/build.ninja ] || meson setup build -Dmode=developer -Dtests=true -Dman=false -Dtranslations=false -Db_sanitize=address -Db_lundef=false >/dev/null && ninja -C build -j6 test-strv && { fail=0; build/test-strv || fail=1; [ $fail = 0 ]; }",
+    "suggestion": {
+      "source": "--suggestion-patch",
+      "patch": "diff --git a/src/basic/strv.c b/src/basic/strv.c\nindex 3dc35cdbf7..4cd6912e08 100644\n--- a/src/basic/strv.c\n+++ b/src/basic/strv.c\n@@ -1271,6 +1271,10 @@ int strv_rebreak_lines(char **l, size_t width, char ***ret) {\n                                 p = start = whitespace_end;\n                                 whitespace_begin = whitespace_end = NULL;\n                                 w = cw;\n+\n+                                /* p was repointed to whitespace_end, so the validity we\n+                                 * determined above no longer applies to it. */\n+                                invalid = utf8_char_console_width(p) < 0;\n                         }\n \n                         p = invalid ? p + 1 : utf8_next_char(p);\n"
+    },
+    "claim": "Claude: **must-fix**: The OOB read this PR targets is still reachable through the line-break reset path, because `invalid` is stale relative to `p` here.\n\nWhen the break branch just above fires it does `p = start = whitespace_end;` (line 1271), repointing `p` to `whitespace_end` \u2014 the first non-whitespace character after a whitespace run, which is never revalidated. But `invalid` was computed for the character that *triggered* the overflow (the old `p`), not for the character now at `whitespace_end`. If the triggering character is valid (`invalid == false`) while `whitespace_end` points at a truncated/invalid multi-byte lead byte, this line falls through to `utf8_next_char(p)` \u2014 the exact blind `utf8_skip_data[lead]` advance the PR sets out to eliminate \u2014 and steps past the NUL.\n\nConcrete OOB (verified): input `\"a \\xF0b\"` (bytes `61 20 F0 62 00`, 5-byte allocation) with `width < 4` (e.g. 3):\n- `p`\u2192`0xF0` (pos 2): invalid \u2192 `whitespace_end = 2`, advance `p + 1` to `'b'`.\n- `p`\u2192`'b'` (pos 3): valid, `w` becomes 4 > 3, break fires, `p = start = whitespace_end` = pos 2. Advance uses `'b'`'s `invalid == false` \u2192 `p = utf8_next_char(pos 2)` = pos 2 + `utf8_skip_data[0xF0]` (4) = pos 6, two bytes past the NUL. The loop's `*p != 0` test then reads out of bounds.\n\n(This same over-read existed in the original for-loop increment, so it is not a regression, but the PR's stated goal \u2014 never let a bad lead byte blind-skip past the terminator \u2014 is not fully met.)\n\nFix by making the advance decision reflect the character `p` actually points at after the reset \u2014 e.g. `continue` after the reset so the new `p` is re-examined at the top of the loop, or recompute `utf8_char_console_width(p) < 0` at the point of advance. The newly added regression tests (`\"foo\\xF0\"`, `\"bar\\xFC\"`) do not exercise this reset path, so a case like the above should be added too.",
+    "language": "c",
+    "persistent_workdir": true,
+    "normalisation": {
+      "files": [
+        {
+          "file": "src/basic/strv.c",
+          "equivalent": false,
+          "method": "tokens"
+        }
+      ]
+    },
+    "suite": {
+      "head_runs": [
+        {
+          "returncode": 0,
+          "passed": true,
+          "timed_out": false,
+          "duration": 0.59
+        }
+      ],
+      "head_passed": 1,
+      "suggestion_runs": [
+        {
+          "returncode": 0,
+          "passed": true,
+          "timed_out": false,
+          "duration": 0.593
+        }
+      ],
+      "suggestion_passed": 1
+    },
+    "reproducer": {
+      "source": "generated",
+      "attempts": [
+        {
+          "attempt": 1,
+          "content": "/* SPDX-License-Identifier: LGPL-2.1-or-later */\n\n#include <string.h>\n\n#include \"alloc-util.h\"\n#include \"strv.h\"\n#include \"tests.h\"\n\nTEST(rebreak_lines_reset_onto_invalid_lead_byte) {\n        /* After a line break the scan restarts at the first non-whitespace character, which here is a\n         * truncated-looking 0xF0 lead byte followed by 'b' and NUL. The advance must not trust the lead\n         * byte's skip length and step past the NUL. Exactly sized heap buffer so ASan/valgrind notice. */\n        _cleanup_free_ char *s = memdup(\"a \\xF0\" \"b\", 5);\n        ASSERT_NOT_NULL(s);\n\n        char *l[] = { s, NULL };\n        _cleanup_strv_free_ char **broken = NULL;\n\n        ASSERT_OK(strv_rebreak_lines(l, 3, &broken));\n        ASSERT_NOT_NULL(broken);\n        ASSERT_GE(strv_length(broken), 1u);\n}\n\nDEFINE_TEST_MAIN(LOG_DEBUG);\n",
+          "first_run": {
+            "returncode": 1,
+            "passed": false,
+            "timed_out": false,
+            "duration": 0.199
+          },
+          "classification": {
+            "kind": "behavioural",
+            "behavioural": true,
+            "reason": "C runtime failure (sanitizer/assertion)",
+            "detail": "ERROR: AddressSanitizer"
+          },
+          "outcome": "accepted"
+        }
+      ],
+      "path": "src/test/test-patchproof-review.c",
+      "cmd": "/home/armaan/Documents/vscode/OpenSourceStuff/patchproof/eval/review/build_repro.sh . test-strv src/test/test-patchproof-review.c",
+      "existing_tests": "src/test/test-strv.c",
+      "content": "/* SPDX-License-Identifier: LGPL-2.1-or-later */\n\n#include <string.h>\n\n#include \"alloc-util.h\"\n#include \"strv.h\"\n#include \"tests.h\"\n\nTEST(rebreak_lines_reset_onto_invalid_lead_byte) {\n        /* After a line break the scan restarts at the first non-whitespace character, which here is a\n         * truncated-looking 0xF0 lead byte followed by 'b' and NUL. The advance must not trust the lead\n         * byte's skip length and step past the NUL. Exactly sized heap buffer so ASan/valgrind notice. */\n        _cleanup_free_ char *s = memdup(\"a \\xF0\" \"b\", 5);\n        ASSERT_NOT_NULL(s);\n\n        char *l[] = { s, NULL };\n        _cleanup_strv_free_ char **broken = NULL;\n\n        ASSERT_OK(strv_rebreak_lines(l, 3, &broken));\n        ASSERT_NOT_NULL(broken);\n        ASSERT_GE(strv_length(broken), 1u);\n}\n\nDEFINE_TEST_MAIN(LOG_DEBUG);\n",
+      "failure_class": {
+        "kind": "behavioural",
+        "behavioural": true,
+        "reason": "C runtime failure (sanitizer/assertion)",
+        "detail": "ERROR: AddressSanitizer"
+      },
+      "failure_output_tail": "==65673==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x7b2d661e0016 at pc 0x7f0d67932f6f bp 0x7ffcd2b17cd0 sp 0x7ffcd2b17cc8\nREAD of size 1 at 0x7b2d661e0016 thread T0\n    #0 0x7f0d67932f6e  (<repo>/build/src/shared/libsystemd-shared-261.so+0x644f6e) (BuildId: 570f9721a9d3de3e1b2e72474e3f7f9885c53246)\n    #1 0x00000050aa6c  (<repo>/build/patchproof-review-repro+0x50aa6c) (BuildId: 1d27ad432a9c6074bdebe8e55851cdc74aad7a1e)\n    #2 0x7f0d677bd549  (<repo>/build/src/shared/libsystemd-shared-261.so+0x4cf549) (BuildId: 570f9721a9d3de3e1b2e72474e3f7f9885c53246)\n    #3 0x00000050af21  (<repo>/build/patchproof-review-repro+0x50af21) (BuildId: 1d27ad432a9c6074bdebe8e55851cdc74aad7a1e)\n    #4 0x7f0d66f7c680  (/lib64/libc.so.6+0x3680) (BuildId: 5bd941be836f538fe5e10eff508f7f5dd94905a6)\n    #5 0x7f0d66f7c797  (/lib64/libc.so.6+0x3797) (BuildId: 5bd941be836f538fe5e10eff508f7f5dd94905a6)\n    #6 0x00000042c3f4  (<repo>/build/patchproof-review-repro+0x42c3f4) (BuildId: 1d27ad432a9c6074bdebe8e55851cdc74aad7a1e)\n\n0x7b2d661e0016 is located 1 bytes after 5-byte region [0x7b2d661e0010,0x7b2d661e0015)\nallocated by thread T0 here:\n    #0 0x0000004d0378  (<repo>/build/patchproof-review-repro+0x4d0378) (BuildId: 1d27ad432a9c6074bdebe8e55851cdc74aad7a1e)\n    #1 0x7f0d677c6024  (<repo>/build/src/shared/libsystemd-shared-261.so+0x4d8024) (BuildId: 570f9721a9d3de3e1b2e72474e3f7f9885c53246)\n    #2 0x00000050a99d  (<repo>/build/patchproof-review-repro+0x50a99d) (BuildId: 1d27ad432a9c6074bdebe8e55851cdc74aad7a1e)\n    #3 0x7f0d677bd549  (<repo>/build/src/shared/libsystemd-shared-261.so+0x4cf549) (BuildId: 570f9721a9d3de3e1b2e72474e3f7f9885c53246)\n    #4 0x00000050af21  (<repo>/build/patchproof-review-repro+0x50af21) (BuildId: 1d27ad432a9c6074bdebe8e55851cdc74aad7a1e)\n    #5 0x7f0d66f7c680  (/lib64/libc.so.6+0x3680) (BuildId: 5bd941be836f538fe5e10eff508f7f5dd94905a6)\n    #6 0x7f0d66f7c797  (/lib64/libc.so.6+0x3797) (BuildId: 5bd941be836f538fe5e10eff508f7f5dd94905a6)\n    #7 0x00000042c3f4  (<repo>/build/patchproof-review-repro+0x42c3f4) (BuildId: 1d27ad432a9c6074bdebe8e55851cdc74aad7a1e)\n\nSUMMARY: AddressSanitizer: heap-buffer-overflow (<repo>/build/src/shared/libsystemd-shared-261.so+0x644f6e) (BuildId: 570f9721a9d3de3e1b2e72474e3f7f9885c53246) \nShadow bytes around the buggy address:\n  0x7b2d661dfd80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x7b2d661dfe00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x7b2d661dfe80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00...",
+      "head_runs": [
+        {
+          "returncode": 1,
+          "passed": false,
+          "timed_out": false,
+          "duration": 0.199
+        }
+      ],
+      "failed_on_head": true,
+      "head_flaky": false,
+      "suggestion_runs": [
+        {
+          "returncode": 0,
+          "passed": true,
+          "timed_out": false,
+          "duration": 0.198
+        }
+      ]
+    },
+    "findings": [
+      {
+        "verdict": "NECESSARY",
+        "message": "the reproducer fails on the PR head and passes with the suggestion applied"
+      }
+    ]
+  },
+  "hunks": [],
+  "timings": {
+    "suite_head": 0.59,
+    "reproducer_head": 0.207,
+    "suite_suggestion": 0.593,
+    "reproducer_suggestion": 0.198,
+    "total": 1.596
+  },
+  "wall_seconds": 1.7
+}

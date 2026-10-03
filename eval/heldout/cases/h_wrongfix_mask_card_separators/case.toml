@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_cards.py'
+expected_verdict = "WEAK_TEST"
+category = "wrong_fix"
+source = "synthetic (overfitting-style patch)"
+notes = '''mask_card() masked the whole number. The patch keeps the last 4 characters and stars the rest, correct for unseparated numbers (the only input tested) but it also stars the dashes in '4111-1111-1111-1111'. hidden_test.py asserts the separators survive.'''

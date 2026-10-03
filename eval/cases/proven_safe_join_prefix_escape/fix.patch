@@ -1,0 +1,50 @@
+diff --git a/fsutil.py b/fsutil.py
+index 6659747..f7ceb8b 100644
+--- a/fsutil.py
++++ b/fsutil.py
+@@ -6,6 +6,6 @@ def safe_join(root: str, user_path: str) -> str:
+     """Join `user_path` under `root`, refusing anything that escapes it."""
+     root = os.path.abspath(root)
+     target = os.path.abspath(os.path.join(root, user_path))
+-    if not target.startswith(root):
++    if os.path.commonpath([root, target]) != root:
+         raise ValueError(f"path escapes root: {user_path!r}")
+     return target
+diff --git a/tests/test_fsutil.py b/tests/test_fsutil.py
+new file mode 100644
+index 0000000..f0ab8cf
+--- /dev/null
++++ b/tests/test_fsutil.py
+@@ -0,0 +1,32 @@
++import pytest
++
++from fsutil import safe_join
++
++ROOT = "/srv/data"
++
++
++def test_plain_join():
++    assert safe_join(ROOT, "a/b.txt") == "/srv/data/a/b.txt"
++
++
++def test_root_itself():
++    assert safe_join(ROOT, ".") == ROOT
++
++
++def test_dotdot_escape():
++    with pytest.raises(ValueError):
++        safe_join(ROOT, "../etc/passwd")
++
++
++def test_sibling_with_same_prefix_escape():
++    with pytest.raises(ValueError):
++        safe_join(ROOT, "../data-secret/x")
++
++
++def test_absolute_path_escape():
++    with pytest.raises(ValueError):
++        safe_join(ROOT, "/etc/passwd")
++
++
++def test_dotdot_that_stays_inside():
++    assert safe_join(ROOT, "a/../b") == "/srv/data/b"

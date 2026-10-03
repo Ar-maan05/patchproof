@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_paginate.py'
+expected_verdict = "PROVEN"
+category = "real_fix"
+source = "synthetic"
+notes = '''paginate() documents 1-indexed pages but computed start = page * per_page, so page 1 skipped the first page of results. The fix changes the offset to (page - 1) * per_page. Tests fail on base with wrong slices and pass on head; every mutation of the offset expression breaks an exact-slice assertion.'''

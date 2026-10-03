@@ -1,0 +1,119 @@
+{
+  "verdict": "NOT_SHOWN",
+  "summary": "the claim was not reproduced through public entry points; that is evidence, not proof, that the suggestion is unnecessary (3 attempt(s): #1: build/compile error, the tests never ran; #2: the reproducer passes on the PR head; #3: the reproducer passes on the PR head)",
+  "evidence": {
+    "comment": {
+      "user": "github-actions[bot]",
+      "html_url": "https://github.com/systemd/systemd/pull/43953#discussion_r4145779056",
+      "path": "src/libsystemd/sd-journal/journal-verify.c",
+      "line_range": [
+        537,
+        537
+      ],
+      "side": "RIGHT",
+      "commit_id": "ecb7f185086b63b42abd5d1e56c24e69504d8760"
+    },
+    "test_cmd": "[ -f build/build.ninja ] || meson setup build -Dmode=developer -Dtests=true -Dman=false -Dtranslations=false -Db_sanitize=address -Db_lundef=false >/dev/null && ninja -C build -j6 test-journal && { fail=0; build/test-journal || fail=1; [ $fail = 0 ]; }",
+    "suggestion": {
+      "source": "--suggestion-patch",
+      "patch": "diff --git a/src/shared/journal-file-util.c b/src/shared/journal-file-util.c\nindex 9425d76c00..2d437611bf 100644\n--- a/src/shared/journal-file-util.c\n+++ b/src/shared/journal-file-util.c\n@@ -119,8 +119,7 @@ static int journal_file_punch_holes(JournalFile *f) {\n                 for (size_t j = 0; j < (size_t) n / sizeof(HashItem); j++) {\n                         Object o;\n \n-                        for (uint64_t q = le64toh(items[j].head_hash_offset); q != 0;\n-                             q = le64toh(o.data.next_hash_offset)) {\n+                        for (uint64_t q = le64toh(items[j].head_hash_offset), next; q != 0; q = next) {\n \n                                 r = journal_file_read_object_header(f, OBJECT_DATA, q, &o);\n                                 if (r < 0) {\n@@ -128,6 +127,16 @@ static int journal_file_punch_holes(JournalFile *f) {\n                                         break;\n                                 }\n \n+                                /* Objects are only ever appended, hence the hash chain has to move\n+                                 * strictly forward. If it doesn't the file is corrupted, and following\n+                                 * it would make us loop forever. Unlike for entry arrays this is not\n+                                 * checked when the object is read. */\n+                                next = le64toh(o.data.next_hash_offset);\n+                                if (next != 0 && next <= q) {\n+                                        log_debug(\"Data hash chain has a cycle at %\"PRIu64\", ignoring.\", q);\n+                                        break;\n+                                }\n+\n                                 if (le64toh(o.data.n_entries) == 0)\n                                         continue;\n \n"
+    },
+    "claim": "Claude: **suggestion**: `journal_file_punch_holes()` (src/shared/journal-file-util.c:122) walks `data.next_hash_offset` with no forward-progress check, so journald spins forever on this same corruption while offlining a file. Worth applying the check there too.",
+    "language": "c",
+    "persistent_workdir": true,
+    "normalisation": {
+      "files": [
+        {
+          "file": "src/shared/journal-file-util.c",
+          "equivalent": false,
+          "method": "tokens"
+        }
+      ]
+    },
+    "suite": {
+      "head_runs": [
+        {
+          "returncode": 0,
+          "passed": true,
+          "timed_out": false,
+          "duration": 0.886
+        }
+      ],
+      "head_passed": 1,
+      "suggestion_runs": [
+        {
+          "returncode": 0,
+          "passed": true,
+          "timed_out": false,
+          "duration": 0.864
+        }
+      ],
+      "suggestion_passed": 1
+    },
+    "reproducer": {
+      "source": "generated",
+      "attempts": [
+        {
+          "attempt": 1,
+          "content": "/* SPDX-License-Identifier: LGPL-2.1-or-later */\n\n#include <fcntl.h>\n#include <stddef.h>\n#include <stdio.h>\n#include <sys/stat.h>\n#include <unistd.h>\n\n#include \"alloc-util.h\"\n#include \"chattr-util.h\"\n#include \"fd-util.h\"\n#include \"iovec-util.h\"\n#include \"journal-def.h\"\n#include \"journal-file-util.h\"\n#include \"mmap-cache.h\"\n#include \"rm-rf.h\"\n#include \"tests.h\"\n#include \"time-util.h\"\n\nstatic int open_journal(MMapCache *m, int flags, JournalFile **ret) {\n        return journal_file_open(\n                        /* fd= */ -EBADF,\n                        \"test.journal\",\n                        flags,\n                        JOURNAL_COMPRESS,\n                        0666,\n                        /* compress_threshold_bytes= */ UINT64_MAX,\n                        /* metrics= */ NULL,\n                        m,\n                        /* template= */ NULL,\n                        ret);\n}\n\nTEST(punch_holes_hash_chain_cycle) {\n        _cleanup_(mmap_cache_unrefp) MMapCache *m = NULL;\n        char t[] = \"/var/tmp/journal-XXXXXX\";\n        JournalFile *f;\n        uint64_t data_offset = 0;\n        int fd;\n\n        if (sd_id128_get_machine(NULL) < 0)\n                return (void) log_tests_skipped(\"No valid machine ID found\");\n\n        ASSERT_NOT_NULL(m = mmap_cache_new());\n        ASSERT_NOT_NULL(mkdtemp(t));\n        ASSERT_OK_ERRNO(chdir(t));\n        (void) chattr_path(t, FS_NOCOW_FL, FS_NOCOW_FL);\n\n        ASSERT_OK_ZERO(open_journal(m, O_RDWR|O_CREAT, &f));\n\n        for (size_t n = 0; n < 100; n++) {\n                _cleanup_free_ char *s = NULL;\n                struct iovec iovec;\n                struct dual_timestamp ts;\n\n                dual_timestamp_now(&ts);\n                ASSERT_OK_ERRNO(asprintf(&s, \"RANDOM=%zu\", n % 7));\n                iovec = IOVEC_MAKE_STRING(s);\n                ASSERT_OK_ZERO(journal_file_append_entry(\n                                       f, &ts, /* boot_id= */ NULL, &iovec, /* n_iovec= */ 1,\n                                       /* seqnum= */ NULL, /* seqnum_id= */ NULL,\n                                       /* ret_object= */ NULL, /* ret_offset= */ NULL));\n        }\n        (void) journal_file_offline_close(f);\n\n        /* Find the head of a non-empty data hash chain */\n        ASSERT_OK_ZERO(open_journal(m, O_RDONLY, &f));\n        ASSERT_OK(journal_file_map_data_hash_table(f));\n        for (uint64_t i = 0; i < le64toh(f->header->data_hash_table_size) / sizeof(HashItem); i++) {\n                data_offset = le64toh(f->data_hash_table[i].head_hash_offset);\n                if (data_offset != 0)\n                        break;\n        }\n        ASSERT_NE(data_offset, 0u);\n        (void) journal_file_close(f);\n\n        /* Corrupt it: make that data object's next_hash_offset point to itself */\n        uint64_t self = htole64(data_offset);\n        ASSERT_OK_ERRNO(fd = open(\"test.journal\", O_RDWR|O_CLOEXEC));\n        ASSERT_EQ(pwrite(fd, &self, sizeof(self), data_offset + offsetof(Object, data.next_hash_offset)),\n                  (ssize_t) sizeof(self));\n        safe_close(fd);\n\n        ASSERT_OK_ZERO(open_journal(m, O_RDWR, &f));\n\n        /* If the hash chain walk lacks a forward-progress check this never returns */\n        alarm(20);\n        (void) journal_file_punch_holes(f);\n        alarm(0);\n\n        (void) journal_file_close(f);\n        (void) rm_rf(t, REMOVE_ROOT|REMOVE_PHYSICAL);\n}\n\nDEFINE_TEST_MAIN(LOG_DEBUG);\n",
+          "first_run": {
+            "returncode": 1,
+            "passed": false,
+            "timed_out": false,
+            "duration": 0.15
+          },
+          "classification": {
+            "kind": "compile",
+            "behavioural": false,
+            "reason": "build/compile error, the tests never ran",
+            "detail": "error:"
+          },
+          "outcome": "wrong_reason_failure",
+          "reason": "build/compile error, the tests never ran"
+        },
+        {
+          "attempt": 2,
+          "content": "/* SPDX-License-Identifier: LGPL-2.1-or-later */\n\n#include <fcntl.h>\n#include <stddef.h>\n#include <stdio.h>\n#include <sys/stat.h>\n#include <unistd.h>\n\n#include \"alloc-util.h\"\n#include \"chattr-util.h\"\n#include \"fd-util.h\"\n#include \"iovec-util.h\"\n#include \"journal-def.h\"\n#include \"journal-file-util.h\"\n#include \"mmap-cache.h\"\n#include \"rm-rf.h\"\n#include \"tests.h\"\n#include \"time-util.h\"\n\nstatic int open_journal(MMapCache *m, int flags, JournalFile **ret) {\n        return journal_file_open(\n                        /* fd= */ -EBADF,\n                        \"test.journal\",\n                        flags,\n                        JOURNAL_COMPRESS,\n                        0666,\n                        /* compress_threshold_bytes= */ UINT64_MAX,\n                        /* metrics= */ NULL,\n                        m,\n                        /* template= */ NULL,\n                        ret);\n}\n\nTEST(punch_holes_hash_chain_cycle) {\n        _cleanup_(mmap_cache_unrefp) MMapCache *m = NULL;\n        char t[] = \"/var/tmp/journal-XXXXXX\";\n        JournalFile *f;\n        uint64_t data_offset = 0;\n        int fd;\n\n        if (sd_id128_get_machine(NULL) < 0)\n                return (void) log_tests_skipped(\"No valid machine ID found\");\n\n        ASSERT_NOT_NULL(m = mmap_cache_new());\n        ASSERT_NOT_NULL(mkdtemp(t));\n        ASSERT_OK_ERRNO(chdir(t));\n        (void) chattr_path(t, FS_NOCOW_FL, FS_NOCOW_FL);\n\n        ASSERT_OK_ZERO(open_journal(m, O_RDWR|O_CREAT, &f));\n\n        for (size_t n = 0; n < 100; n++) {\n                _cleanup_free_ char *s = NULL;\n                struct iovec iovec;\n                struct dual_timestamp ts;\n\n                dual_timestamp_now(&ts);\n                ASSERT_OK_ERRNO(asprintf(&s, \"RANDOM=%zu\", n % 7));\n                iovec = IOVEC_MAKE_STRING(s);\n                ASSERT_OK_ZERO(journal_file_append_entry(\n                                       f, &ts, /* boot_id= */ NULL, &iovec, /* n_iovec= */ 1,\n                                       /* seqnum= */ NULL, /* seqnum_id= */ NULL,\n                                       /* ret_object= */ NULL, /* ret_offset= */ NULL));\n        }\n        (void) journal_file_offline_close(f);\n\n        /* Find the head of a non-empty data hash chain */\n        ASSERT_OK_ZERO(open_journal(m, O_RDONLY, &f));\n        ASSERT_OK(journal_file_map_data_hash_table(f));\n        for (uint64_t i = 0; i < le64toh(f->header->data_hash_table_size) / sizeof(HashItem); i++) {\n                data_offset = le64toh(f->data_hash_table[i].head_hash_offset);\n                if (data_offset != 0)\n                        break;\n        }\n        ASSERT_NE(data_offset, 0u);\n        (void) journal_file_close(f);\n\n        /* Corrupt it: make that data object's next_hash_offset point to itself */\n        uint64_t self = htole64(data_offset);\n        ASSERT_OK_ERRNO(fd = open(\"test.journal\", O_RDWR|O_CLOEXEC));\n        ASSERT_EQ(pwrite(fd, &self, sizeof(self), data_offset + offsetof(Object, data.next_hash_offset)),\n                  (ssize_t) sizeof(self));\n        safe_close(fd);\n\n        ASSERT_OK_ZERO(open_journal(m, O_RDWR, &f));\n\n        /* Offlining a writable file punches holes in it, which walks the data hash chains. If that walk\n         * lacks a forward-progress check this never returns. */\n        alarm(20);\n        (void) journal_file_offline_close(f);\n        alarm(0);\n\n        (void) rm_rf(t, REMOVE_ROOT|REMOVE_PHYSICAL);\n}\n\nDEFINE_TEST_MAIN(LOG_DEBUG);\n",
+          "first_run": {
+            "returncode": 0,
+            "passed": true,
+            "timed_out": false,
+            "duration": 0.223
+          },
+          "outcome": "passes_on_head",
+          "reason": "the reproducer passes on the PR head"
+        },
+        {
+          "attempt": 3,
+          "content": "/* SPDX-License-Identifier: LGPL-2.1-or-later */\n\n#include <fcntl.h>\n#include <stddef.h>\n#include <stdio.h>\n#include <sys/stat.h>\n#include <unistd.h>\n\n#include \"alloc-util.h\"\n#include \"chattr-util.h\"\n#include \"fd-util.h\"\n#include \"iovec-util.h\"\n#include \"journal-def.h\"\n#include \"journal-file-util.h\"\n#include \"mmap-cache.h\"\n#include \"rm-rf.h\"\n#include \"tests.h\"\n#include \"time-util.h\"\n\nTEST(offline_hash_chain_cycle) {\n        _cleanup_(mmap_cache_unrefp) MMapCache *m = NULL;\n        char t[] = \"/var/tmp/journal-XXXXXX\";\n        JournalFile *f;\n        uint64_t data_offset = 0;\n        int fd;\n\n        if (sd_id128_get_machine(NULL) < 0)\n                return (void) log_tests_skipped(\"No valid machine ID found\");\n\n        ASSERT_NOT_NULL(m = mmap_cache_new());\n        ASSERT_NOT_NULL(mkdtemp(t));\n        ASSERT_OK_ERRNO(chdir(t));\n        (void) chattr_path(t, FS_NOCOW_FL, FS_NOCOW_FL);\n\n        ASSERT_OK_ZERO(journal_file_open(\n                               /* fd= */ -EBADF,\n                               \"test.journal\",\n                               O_RDWR|O_CREAT,\n                               JOURNAL_COMPRESS,\n                               0666,\n                               /* compress_threshold_bytes= */ UINT64_MAX,\n                               /* metrics= */ NULL,\n                               m,\n                               /* template= */ NULL,\n                               &f));\n\n        for (size_t n = 0; n < 100; n++) {\n                _cleanup_free_ char *s = NULL;\n                struct iovec iovec;\n                struct dual_timestamp ts;\n\n                dual_timestamp_now(&ts);\n                ASSERT_OK_ERRNO(asprintf(&s, \"RANDOM=%zu\", n % 7));\n                iovec = IOVEC_MAKE_STRING(s);\n                ASSERT_OK_ZERO(journal_file_append_entry(\n                                       f, &ts, /* boot_id= */ NULL, &iovec, /* n_iovec= */ 1,\n                                       /* seqnum= */ NULL, /* seqnum_id= */ NULL,\n                                       /* ret_object= */ NULL, /* ret_offset= */ NULL));\n        }\n\n        /* The file is still online (writable, entries appended). Find the head of a non-empty data hash\n         * chain. */\n        ASSERT_OK(journal_file_map_data_hash_table(f));\n        for (uint64_t i = 0; i < le64toh(f->header->data_hash_table_size) / sizeof(HashItem); i++) {\n                data_offset = le64toh(f->data_hash_table[i].head_hash_offset);\n                if (data_offset != 0)\n                        break;\n        }\n        ASSERT_NE(data_offset, 0u);\n\n        /* Corrupt it: make that data object's next_hash_offset point to itself */\n        uint64_t self = htole64(data_offset);\n        ASSERT_OK_ERRNO(fd = open(\"test.journal\", O_RDWR|O_CLOEXEC));\n        ASSERT_EQ(pwrite(fd, &self, sizeof(self), data_offset + offsetof(Object, data.next_hash_offset)),\n                  (ssize_t) sizeof(self));\n        safe_close(fd);\n\n        /* Offlining a writable online file punches holes in it, which walks the data hash chains. If that\n         * walk lacks a forward-progress check this never returns (SIGALRM kills the test). */\n        alarm(20);\n        (void) journal_file_offline_close(f);\n        alarm(0);\n\n        (void) rm_rf(t, REMOVE_ROOT|REMOVE_PHYSICAL);\n}\n\nDEFINE_TEST_MAIN(LOG_DEBUG);\n",
+          "first_run": {
+            "returncode": 0,
+            "passed": true,
+            "timed_out": false,
+            "duration": 0.304
+          },
+          "outcome": "passes_on_head",
+          "reason": "the reproducer passes on the PR head"
+        }
+      ],
+      "path": "src/libsystemd/sd-journal/test-patchproof-review.c",
+      "cmd": "/home/armaan/Documents/vscode/OpenSourceStuff/patchproof/eval/review/build_repro.sh . test-journal src/libsystemd/sd-journal/test-patchproof-review.c",
+      "existing_tests": "src/libsystemd/sd-journal/test-journal-verify.c",
+      "failed_on_head": false
+    },
+    "findings": [
+      {
+        "verdict": "NOT_SHOWN",
+        "message": "the claim was not reproduced through public entry points; that is evidence, not proof, that the suggestion is unnecessary (3 attempt(s): #1: build/compile error, the tests never ran; #2: the reproducer passes on the PR head; #3: the reproducer passes on the PR head)"
+      }
+    ]
+  },
+  "hunks": [],
+  "timings": {
+    "suite_head": 0.886,
+    "reproducer_head": 0.693,
+    "suite_suggestion": 0.864,
+    "total": 2.449
+  },
+  "wall_seconds": 2.5
+}

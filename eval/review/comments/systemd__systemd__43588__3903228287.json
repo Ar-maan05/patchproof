@@ -1,0 +1,69 @@
+{
+  "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/3903228287",
+  "pull_request_review_id": 5076946693,
+  "id": 3903228287,
+  "node_id": "PRRC_kwDOAfWbYc7opol_",
+  "diff_hunk": "@@ -259,11 +268,23 @@ int mdns_service_update(DnssdDiscoveredService *service, DnsResourceRecord *rr,\n         /* Update the 80% TTL maintenance event based on new record received\n          * from the network. RFC 6762 section 5.2  */\n         if (service->schedule_event) {\n+                int r;\n+\n+                /* The record was refreshed, hence the maintenance schedule starts over at 80% of the\n+                 * new lifetime. Also re-arm the event source: it is one-shot, so it is left disabled\n+                 * once the 100% query has been issued, and merely setting a new time would not bring\n+                 * it back. */\n+                service->rr_ttl_state = DNS_RECORD_TTL_STATE_80_PERCENT;\n+\n                 usec_t next_time = mdns_maintenance_next_time(\n                         service->until, service->rr->ttl, DNS_RECORD_TTL_STATE_80_PERCENT);\n                 usec_t jitter = mdns_maintenance_jitter(service->rr->ttl);\n \n-                return sd_event_source_set_time(service->schedule_event, usec_add(next_time, jitter));\n+                r = sd_event_source_set_time(service->schedule_event, usec_add(next_time, jitter));",
+  "path": "src/resolve/resolved-dns-browse-services.c",
+  "commit_id": "805ceff65a32fbe1c0619b6e8d7a3e799347a670",
+  "original_commit_id": "805ceff65a32fbe1c0619b6e8d7a3e799347a670",
+  "user": {
+    "login": "github-actions[bot]",
+    "id": 41898282,
+    "node_id": "MDM6Qm90NDE4OTgyODI=",
+    "avatar_url": "https://avatars.githubusercontent.com/in/15368?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/github-actions%5Bbot%5D",
+    "html_url": "https://github.com/apps/github-actions",
+    "followers_url": "https://api.github.com/users/github-actions%5Bbot%5D/followers",
+    "following_url": "https://api.github.com/users/github-actions%5Bbot%5D/following{/other_user}",
+    "gists_url": "https://api.github.com/users/github-actions%5Bbot%5D/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/github-actions%5Bbot%5D/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/github-actions%5Bbot%5D/subscriptions",
+    "organizations_url": "https://api.github.com/users/github-actions%5Bbot%5D/orgs",
+    "repos_url": "https://api.github.com/users/github-actions%5Bbot%5D/repos",
+    "events_url": "https://api.github.com/users/github-actions%5Bbot%5D/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/github-actions%5Bbot%5D/received_events",
+    "type": "Bot",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "body": "Claude: **must-fix**: The unconditional restart at 80% lacks the past-time fallback that `dns_add_new_service()` has (the catch-up loop over `rr_ttl_state` plus `if (next_time < usec)`, lines 198-214), and on this path `service->until` and `service->rr->ttl` are not commensurate.\n\n`until` originates in `dns_cache_lookup()` as `DnsCacheItem.until_valid`, i.e. `timestamp + MIN(ttl * USEC_PER_SEC, CACHE_TTL_MAX_USEC)` (`calculate_until_valid()` in resolved-dns-cache.c) - an absolute CLOCK_BOOTTIME instant capped 2 h past the caching timestamp. It reaches here unmodified via the answer item (`mdns_manage_services_answer()` passes `item->until` to `dns_service_match_and_update()`). `service->rr->ttl` is the raw network TTL, uncapped: the browse lookup does not set `SD_RESOLVED_CLAMP_TTL`, so `answer_add_clamp_ttl()` leaves the RR's TTL alone.\n\nConsequences: for any TTL above 36000 s (10 h), where 20% of the raw TTL already exceeds the 2 h cap, the computed 80% time lies in the past; and once 20% of the TTL exceeds `until` itself (roughly `ttl_sec > 5 * (uptime_sec + 7200)`), `usec_sub_unsigned()` saturates to 0 and the source is armed at `usec_add(0, jitter) == jitter` - an absolute boottime instant drawn purely from the random range, unrelated to the record's lifetime. For the 2^31 TTL the new test uses, that is uniform over ~497 days, so the test's assertion passes while the schedule is still meaningless.\n\nIn the past-time regime the source fires immediately and `mdns_maintenance_query()` walks 85/90/95/100%, each `event_reset_time()`'d into the past as well, so four maintenance queries go out back to back before the 100% branch revisits the cache. If those queries refresh the cache entry, `service->until < until` holds, `mdns_service_update()` resets to 80% and re-arms in the past again - from inside the timer callback - so the burst can repeat as long as the responder keeps answering. Before this change a source left disabled after the 100% query terminated it.\n\nNote `mdns_service_update()` already receives `t` (`dns_service_match_and_update()` passes `now(CLOCK_BOOTTIME)`) and ignores it entirely - that is exactly the timestamp needed. Mirror the existing guard, or factor `dns_add_new_service()`'s catch-up loop into a helper shared by both call sites.",
+  "created_at": "2026-09-01T10:35:29Z",
+  "updated_at": "2026-09-01T10:35:30Z",
+  "html_url": "https://github.com/systemd/systemd/pull/43588#discussion_r3903228287",
+  "pull_request_url": "https://api.github.com/repos/systemd/systemd/pulls/43588",
+  "_links": {
+    "self": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/comments/3903228287"
+    },
+    "html": {
+      "href": "https://github.com/systemd/systemd/pull/43588#discussion_r3903228287"
+    },
+    "pull_request": {
+      "href": "https://api.github.com/repos/systemd/systemd/pulls/43588"
+    }
+  },
+  "reactions": {
+    "url": "https://api.github.com/repos/systemd/systemd/pulls/comments/3903228287/reactions",
+    "total_count": 0,
+    "+1": 0,
+    "-1": 0,
+    "laugh": 0,
+    "hooray": 0,
+    "confused": 0,
+    "heart": 0,
+    "rocket": 0,
+    "eyes": 0
+  },
+  "start_line": null,
+  "original_start_line": 277,
+  "start_side": "RIGHT",
+  "line": null,
+  "original_line": 283,
+  "side": "RIGHT",
+  "author_association": "NONE",
+  "original_position": 43,
+  "position": 1,
+  "subject_type": "line"
+}

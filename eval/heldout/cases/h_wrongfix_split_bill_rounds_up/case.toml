@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_billing.py'
+expected_verdict = "WEAK_TEST"
+category = "wrong_fix"
+source = "synthetic (overfitting-style patch)"
+notes = '''split_bill() lost the remainder cents (100 over 3 gave 99 total). The patch uses ceiling division for everyone, so the shares now add up to at least the total, which is all the test checks; but 100 over 3 becomes 102, overcharging. hidden_test.py asserts the shares sum to exactly the total.'''

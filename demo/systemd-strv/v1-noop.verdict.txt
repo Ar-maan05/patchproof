@@ -1,0 +1,36 @@
+╭──────────────────── CANNOT_REPRODUCE  BUG NOT REPRODUCED ────────────────────╮
+│ test still fails with the patch applied: the fix does not fix it             │
+│                                                                              │
+│ runs      base: 0/3 passed   head: 0/3 passed                                │
+│                                                                              │
+│ hunk                  status                                                 │
+│ src/basic/strv.c#1    not_evaluated                                          │
+│ src/basic/strv.c#2    not_evaluated                                          │
+│ src/test/test-strv.c  test                                                   │
+│                                                                              │
+│ failure output (tail):                                                       │
+│ ==100848==ERROR: AddressSanitizer: global-buffer-overflow on address         │
+│ 0x00000054f1c7 at pc 0x7f82e25b2f6f bp 0x7fffd399ff10 sp 0x7fffd399ff08      │
+│ READ of size 1 at 0x00000054f1c7 thread T0                                   │
+│     #0 0x7f82e25b2f6e                                                        │
+│ (<repo>/build/src/shared/libsystemd-shared-261.so+0x644f6e) (BuildId:        │
+│ dad132441dfeba36a15e6a4e5f6188e17e81925d)                                    │
+│     #1 0x000000528d39  (<repo>/build/test-strv+0x528d39) (BuildId:           │
+│ 843100c6bbb88461f2f3e698d9670dcd0c75ea6d)                                    │
+│     #2 0x7f82e243d549                                                        │
+│ (<repo>/build/src/shared/libsystemd-shared-261.so+0x4cf549) (BuildId:        │
+│ dad132441dfeba36a15e6a4e5f6188e17e81925d)                                    │
+│     #3 0x00000052b9f1  (<repo>/build/test-strv+0x52b9f1) (BuildId:           │
+│ 843100c6bbb88461f2f3e698d9670dcd0c75ea6d)                                    │
+│     #4 0x7f82e1bfc680  (/lib64/libc.so.6+0x3680) (BuildId:                   │
+│ 5bd941be836f538fe5e10eff508f7f5dd94905a6)                                    │
+│     #5 0x7f82e1bfc797  (/lib64/libc.so.6+0x3797) (BuildId:                   │
+│ 5bd941be836f538fe5e10eff508f7f5dd94905a6)                                    │
+│     #6 0x00000042c6c4  (<repo>/build/test-strv+0x42c6c4) (BuildId:           │
+│ 843100c6bbb88461f2f3e698d9670dcd0c75ea6d)                                    │
+│                                                                              │
+│ 0x00000054f1c7 is located 25 bytes before global variable '.str.686' defined │
+│ in '../src/test/test-strv.c' (0x00000054f1e0) of size 54                     │
+│   '.str.686' is ascii string 'strv_rebreak_lines(STRV_MAKE("foo\xF0"), 10,   │
+│ &l) >= 0'                                                                    │
+╰─────────────────────────────────── 13.7s ────────────────────────────────────╯

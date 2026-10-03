@@ -1,0 +1,25 @@
+diff --git a/kvparse.py b/kvparse.py
+index 41d4eba..823935c 100644
+--- a/kvparse.py
++++ b/kvparse.py
+@@ -8,6 +8,8 @@ def parse_kv(text: str) -> dict[str, str]:
+         part = part.strip()
+         if not part:
+             continue
++        if "=" not in part:
++            continue
+         key, value = part.split("=", 1)
+         out[key.strip()] = value.strip()
+     return out
+diff --git a/tests/test_kvparse.py b/tests/test_kvparse.py
+new file mode 100644
+index 0000000..e40ad4a
+--- /dev/null
++++ b/tests/test_kvparse.py
+@@ -0,0 +1,6 @@
++from kvparse import parse_kv
++
++
++def test_bare_key_does_not_crash():
++    result = parse_kv("debug;level=3")
++    assert isinstance(result, dict)

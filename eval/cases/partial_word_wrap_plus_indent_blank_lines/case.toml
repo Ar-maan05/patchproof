@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_wrap.py'
+expected_verdict = "PARTIAL"
+category = "partial"
+source = "synthetic"
+notes = '''Real fix: word_wrap() forgot to count the joining space, so lines could exceed the width by one. The patch also changes indent() to skip blank lines, an unrelated behaviour tweak the test never exercises. Only the first hunk is needed.'''

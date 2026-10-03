@@ -1,0 +1,37 @@
+diff --git a/tests/test_wstats.py b/tests/test_wstats.py
+new file mode 100644
+index 0000000..e211c44
+--- /dev/null
++++ b/tests/test_wstats.py
+@@ -0,0 +1,20 @@
++import pytest
++
++from wstats import weighted_mean
++
++
++def test_basic():
++    assert weighted_mean([1, 3], [1, 1]) == 2
++
++
++def test_weights_matter():
++    assert weighted_mean([0, 10], [3, 1]) == 2.5
++
++
++def test_empty_is_zero():
++    assert weighted_mean([], []) == 0.0
++
++
++def test_zero_weight_rejected():
++    with pytest.raises(ValueError):
++        weighted_mean([1, 2], [0, 0])
+diff --git a/wstats.py b/wstats.py
+index 507c69b..45e1641 100644
+--- a/wstats.py
++++ b/wstats.py
+@@ -12,4 +12,6 @@ def weighted_mean(values: Sequence[float], weights: Sequence[float]) -> float:
+     if not values:
+         return 0.0
+     total = sum(weights)
++    if total == 0:
++        return 0.0
+     return sum(v * w for v, w in zip(values, weights)) / total

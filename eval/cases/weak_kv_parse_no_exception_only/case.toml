@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_kvparse.py'
+expected_verdict = "WEAK_TEST"
+category = "weak_test"
+source = "synthetic"
+notes = '''parse_kv() crashed with ValueError on a bare key. Fix uses str.partition. The test only checks that the result is a dict, so it fails on base (exception) but would accept a 'fix' that silently drops flags or returns {} for anything with a bare key. mutant.patch demonstrates one such passing variant.'''

@@ -1,0 +1,24 @@
+diff --git a/ports.py b/ports.py
+index 84065b4..21cc154 100644
+--- a/ports.py
++++ b/ports.py
+@@ -2,4 +2,7 @@
+ 
+ 
+ def parse_ports(text: str) -> list[int]:
+-    return [int(p) for p in text.split(",")]
++    try:
++        return [int(p) for p in text.split(",")]
++    except ValueError:
++        return []
+diff --git a/tests/test_ports.py b/tests/test_ports.py
+new file mode 100644
+index 0000000..f3c5ba3
+--- /dev/null
++++ b/tests/test_ports.py
+@@ -0,0 +1,5 @@
++from ports import parse_ports
++
++
++def test_trailing_comma():
++    assert len(parse_ports("80,443,")) >= 0

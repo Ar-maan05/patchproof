@@ -1,0 +1,49 @@
+diff --git a/tests/test_textwidth.py b/tests/test_textwidth.py
+new file mode 100644
+index 0000000..8c2f1e9
+--- /dev/null
++++ b/tests/test_textwidth.py
+@@ -0,0 +1,23 @@
++from textwidth import display_width, ljust_display
++
++
++def test_ascii():
++    assert display_width("abc") == 3
++    assert display_width("") == 0
++
++
++def test_cjk_is_double_width():
++    assert display_width("日本語") == 6
++
++
++def test_fullwidth_latin():
++    assert display_width("ＡＢ") == 4
++
++
++def test_combining_mark_has_no_width():
++    assert display_width("e\u0301") == 1
++
++
++def test_ljust_uses_columns():
++    assert ljust_display("日本", 6) == "日本  "
++    assert ljust_display("ab", 4, ".") == "ab.."
+diff --git a/textwidth.py b/textwidth.py
+index d8bdd21..f9afd01 100644
+--- a/textwidth.py
++++ b/textwidth.py
+@@ -4,7 +4,14 @@ from __future__ import annotations
+ 
+ def display_width(text: str) -> int:
+     """Number of terminal columns `text` occupies."""
+-    return len(text)
++    import unicodedata
++
++    width = 0
++    for ch in text:
++        if unicodedata.combining(ch):
++            continue
++        width += 2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
++    return width
+ 
+ 
+ def ljust_display(text: str, width: int, fill: str = " ") -> str:

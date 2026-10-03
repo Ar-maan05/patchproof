@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_summary.py'
+expected_verdict = "NO_OP"
+category = "noop"
+source = "synthetic"
+notes = '''The patch genuinely fixes median() for even-length input (averaging the two middle values), but the accompanying test only uses odd-length lists, so it passes on the unpatched code and the changed line is never executed. A real fix with a regression test that does not reproduce the bug.'''

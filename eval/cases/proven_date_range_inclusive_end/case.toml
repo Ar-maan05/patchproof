@@ -1,0 +1,5 @@
+test_cmd = 'python -m pytest -q -p no:cacheprovider tests/test_period.py'
+expected_verdict = "PROVEN"
+category = "real_fix"
+source = "synthetic"
+notes = '''in_period() is documented as inclusive on both ends but used `day < end`, so the last day of a billing period was billed to the next one. Fix uses `<=`. Tests check both boundaries, one-day periods and the days just outside, so boundary mutants (< vs <=) are all killed.'''
